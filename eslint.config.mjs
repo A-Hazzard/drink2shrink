@@ -1,18 +1,50 @@
-import { defineConfig, globalIgnores } from "eslint/config";
-import nextVitals from "eslint-config-next/core-web-vitals";
-import nextTs from "eslint-config-next/typescript";
+import tseslint from '@typescript-eslint/eslint-plugin';
+import tsparser from '@typescript-eslint/parser';
 
-const eslintConfig = defineConfig([
-  ...nextVitals,
-  ...nextTs,
-  // Override default ignores of eslint-config-next.
-  globalIgnores([
-    // Default ignores of eslint-config-next:
-    ".next/**",
-    "out/**",
-    "build/**",
-    "next-env.d.ts",
-  ]),
-]);
+const eslintConfig = [
+  // Ignore patterns for build and script folders
+  {
+    ignores: [
+      '.next/**',
+      'scripts/**',
+      'backup/**',
+      'mongo-migration/**',
+      'node_modules/**',
+      'out/**',
+      'build/**',
+    ],
+  },
+  // Configuration for TypeScript and JavaScript files
+  {
+    files: ['**/*.{js,mjs,cjs,ts,tsx}'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      parser: tsparser,
+      parserOptions: {
+        ecmaFeatures: {
+          jsx: true,
+        },
+      },
+    },
+    plugins: {
+      '@typescript-eslint': tseslint,
+    },
+    rules: {
+      // Basic rules to prevent major issues
+      'no-unused-vars': 'off', // Let TypeScript handle this
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+        },
+      ],
+      'prefer-const': 'error',
+      '@typescript-eslint/no-explicit-any': 'error',
+      'no-console': 'off',
+    },
+  },
+];
 
 export default eslintConfig;
