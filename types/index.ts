@@ -16,7 +16,7 @@ export interface Product {
 }
 
 export type CallGoal = 'lose_weight' | 'detox' | 'both'
-export type CallOutcome = 'pending' | 'sale' | 'not_a_sale'
+export type CallOutcome = 'pending' | 'sale' | 'not_a_sale' | 'out_for_delivery'
 export const DELIVERY_FEES = {
   // NORTH-WEST / NORTH
   chaguaramas: 60,

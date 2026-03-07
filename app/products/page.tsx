@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Plus, Pencil, Trash2, Package, Archive, RotateCcw } from 'lucide-react'
+import { Plus, Pencil, Trash2, Package, Archive, RotateCcw, RefreshCcw } from 'lucide-react'
 import { subscribeProducts, deleteProduct, archiveProduct, restoreProduct } from '@/lib/firestore'
 import type { Product } from '@/types'
 import Modal from '@/components/Modal'
@@ -14,6 +14,7 @@ export default function ProductsPage() {
   const [editing, setEditing] = useState<Product | undefined>()
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [showArchived, setShowArchived] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
     setLoading(true)
@@ -21,7 +22,12 @@ export default function ProductsPage() {
       setProducts(data)
       setLoading(false)
     }, showArchived)
-  }, [showArchived])
+  }, [showArchived, refreshKey])
+
+  function handleRefresh() {
+    setLoading(true)
+    setTimeout(() => setRefreshKey(prev => prev + 1), 500)
+  }
 
   function openAdd() {
     setEditing(undefined)
@@ -65,6 +71,13 @@ export default function ProductsPage() {
           <p className="text-sm text-gray-500 mt-0.5">Manage your product catalogue</p>
         </div>
         <div className="flex gap-2">
+          <button
+            onClick={handleRefresh}
+            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors border border-gray-200"
+            title="Refresh data"
+          >
+            <RefreshCcw size={18} className={loading && refreshKey > 0 ? 'animate-spin' : ''} />
+          </button>
           <button
             onClick={() => setShowArchived(!showArchived)}
             className={`flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${showArchived

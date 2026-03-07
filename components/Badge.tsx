@@ -1,5 +1,5 @@
 interface Props {
-  variant: 'sale' | 'not_a_sale' | 'pending' | 'delivered' | 'neutral' | 'archived'
+  variant: 'sale' | 'not_a_sale' | 'pending' | 'delivered' | 'neutral' | 'archived' | 'out_for_delivery'
   label: string
 }
 
@@ -8,6 +8,7 @@ const STYLES: Record<Props['variant'], string> = {
   not_a_sale: 'bg-red-100 text-red-700',
   pending: 'bg-yellow-100 text-yellow-800',
   delivered: 'bg-blue-100 text-blue-800',
+  out_for_delivery: 'bg-purple-100 text-purple-800',
   archived: 'bg-gray-100 text-gray-800 border border-gray-200',
   neutral: 'bg-gray-100 text-gray-700',
 }

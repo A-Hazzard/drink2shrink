@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react'
 import type { Call, Product, Order, DeliveryArea } from '@/types'
 import { DELIVERY_FEES, DELIVERY_AREA_LABELS, DELIVERY_AREA_GROUPS } from '@/types'
-import { addOrder, updateOrder } from '@/lib/firestore'
+import { addOrder, updateOrder, updateCall } from '@/lib/firestore'
 import { useToast } from '@/contexts/ToastContext'
 import Spinner from '@/components/Spinner'
 
@@ -75,6 +75,12 @@ export default function OrderForm({ calls, products, order, onDone }: Props) {
 
       if (editing) {
         await updateOrder(order.id, payload)
+        // Sync call outcome
+        if (order.callId) {
+          await updateCall(order.callId, {
+            outcome: status === 'delivered' ? 'sale' : 'out_for_delivery'
+          })
+        }
         toast('Order updated!')
       } else {
         await addOrder(payload, callId)

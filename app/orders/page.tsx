@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Plus, Pencil, ShoppingCart, Archive, RotateCcw, Trash2 } from 'lucide-react'
-import { subscribeOrders, subscribeCalls, subscribeProducts, updateOrder, archiveOrder, restoreOrder, deleteOrder } from '@/lib/firestore'
+import { Plus, Pencil, ShoppingCart, Archive, RotateCcw, Trash2, RefreshCcw } from 'lucide-react'
+import { subscribeOrders, subscribeCalls, subscribeProducts, updateOrder, archiveOrder, restoreOrder, deleteOrder, updateCall } from '@/lib/firestore'
 import type { Order, Call, Product } from '@/types'
 import { DELIVERY_AREA_LABELS } from '@/types'
 import Modal from '@/components/Modal'
@@ -27,6 +27,7 @@ export default function OrdersPage() {
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<Order | undefined>()
   const [showArchived, setShowArchived] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
     setLoading(true)
@@ -36,7 +37,12 @@ export default function OrdersPage() {
     const u2 = subscribeCalls((d) => { setCalls(d); clear() })
     const u3 = subscribeProducts((d) => { setProducts(d); clear() })
     return () => { u1(); u2(); u3() }
-  }, [showArchived])
+  }, [showArchived, refreshKey])
+
+  function handleRefresh() {
+    setLoading(true)
+    setTimeout(() => setRefreshKey(prev => prev + 1), 500)
+  }
 
   function openAdd() {
     setEditing(undefined)
@@ -56,6 +62,13 @@ export default function OrdersPage() {
   async function toggleStatus(order: Order) {
     const next = order.status === 'pending' ? 'delivered' : 'pending'
     await updateOrder(order.id, { status: next })
+
+    // Sync call outcome
+    if (order.callId) {
+      await updateCall(order.callId, {
+        outcome: next === 'delivered' ? 'sale' : 'out_for_delivery'
+      })
+    }
   }
 
   async function handleArchive(id: string) {
@@ -67,12 +80,22 @@ export default function OrdersPage() {
     await restoreOrder(id)
   }
 
-  async function handleDelete(id: string) {
+  async function handleDelete(order: Order) {
     if (!confirm('PERMANENTLY DELETE this order? This cannot be undone.')) return
-    await deleteOrder(id)
+    await deleteOrder(order.id)
+
+    // Unlink from call and reset outcome
+    if (order.callId) {
+      await updateCall(order.callId, {
+        orderId: undefined, // Will be cleaned by cleanData
+        outcome: 'pending'
+      })
+    }
   }
 
-  const totalRevenue = orders.reduce((sum, o) => sum + (o.packagePrice ?? 0), 0)
+  const totalRevenue = orders
+    .filter(o => o.status === 'delivered')
+    .reduce((sum, o) => sum + (o.packagePrice ?? 0), 0)
 
   if (loading) return <TableSkeleton cols={8} rows={5} />
 
@@ -87,6 +110,13 @@ export default function OrdersPage() {
           </p>
         </div>
         <div className="flex gap-2">
+          <button
+            onClick={handleRefresh}
+            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors border border-gray-200"
+            title="Refresh data"
+          >
+            <RefreshCcw size={18} className={loading && refreshKey > 0 ? 'animate-spin' : ''} />
+          </button>
           <button
             onClick={() => setShowArchived(!showArchived)}
             className={`flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${showArchived
@@ -159,7 +189,7 @@ export default function OrdersPage() {
                       {DELIVERY_AREA_LABELS[order.area]}
                     </td>
                     <td className="px-4 py-3">
-                      <p className="font-semibold text-green-700">${order.totalPrice}</p>
+                      <p className="font-semibold text-green-700">${order.packagePrice}</p>
                       {order.deliveryFee > 0 && (
                         <p className="text-xs text-gray-400">+${order.deliveryFee} delivery</p>
                       )}
@@ -199,7 +229,7 @@ export default function OrdersPage() {
                               <Archive size={14} />
                             </button>
                             <button
-                              onClick={() => handleDelete(order.id)}
+                              onClick={() => handleDelete(order)}
                               className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                               title="Delete permanently"
                             >
@@ -216,7 +246,7 @@ export default function OrdersPage() {
                               <RotateCcw size={14} />
                             </button>
                             <button
-                              onClick={() => handleDelete(order.id)}
+                              onClick={() => handleDelete(order)}
                               className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                               title="Delete permanently"
                             >

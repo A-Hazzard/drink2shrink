@@ -1,9 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Plus, Pencil, Phone, Archive, RotateCcw, Trash2 } from 'lucide-react'
-import { subscribeCalls, archiveCall, restoreCall, deleteCall } from '@/lib/firestore'
-import type { Call, DeliveryArea } from '@/types'
+import { Plus, Pencil, Phone, Archive, RotateCcw, Trash2, RefreshCcw } from 'lucide-react'
+import { subscribeCalls, archiveCall, restoreCall, deleteCall, subscribeOrders, updateCall } from '@/lib/firestore'
+import type { Call, Order } from '@/types'
 import { DELIVERY_AREA_LABELS } from '@/types'
 import Modal from '@/components/Modal'
 import CallForm from '@/components/calls/CallForm'
@@ -26,19 +26,54 @@ function fmt(ts?: { seconds: number }) {
 
 export default function CallsPage() {
   const [calls, setCalls] = useState<Call[]>([])
+  const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<Call | undefined>()
   const [viewCall, setViewCall] = useState<Call | undefined>()
   const [showArchived, setShowArchived] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
     setLoading(true)
-    return subscribeCalls((data) => {
+    const u1 = subscribeCalls((data) => {
       setCalls(data)
       setLoading(false)
     }, showArchived)
-  }, [showArchived])
+
+    // Also subscribe to active orders for status syncing
+    const u2 = subscribeOrders((data) => {
+      setOrders(data)
+    }, false)
+
+    return () => { u1(); u2() }
+  }, [showArchived, refreshKey])
+
+  function handleRefresh() {
+    setLoading(true)
+    // Small timeout to make the skeleton visible for better UX interaction
+    setTimeout(() => setRefreshKey(prev => prev + 1), 500)
+  }
+
+  // Background Sync: Ensure 'sale' outcomes match order status
+  useEffect(() => {
+    if (loading || calls.length === 0 || orders.length === 0) return
+
+    const syncOutcomes = async () => {
+      for (const call of calls) {
+        const linkedOrder = orders.find(o => o.id === call.orderId || o.callId === call.id)
+        if (linkedOrder) {
+          const correctOutcome = linkedOrder.status === 'delivered' ? 'sale' : 'out_for_delivery'
+          if (call.outcome !== correctOutcome && (call.outcome === 'sale' || call.outcome === 'pending')) {
+            console.log(`Syncing call ${call.id} (${call.name}): ${call.outcome} -> ${correctOutcome}`)
+            await updateCall(call.id, { outcome: correctOutcome })
+          }
+        }
+      }
+    }
+
+    syncOutcomes()
+  }, [calls, orders, loading])
 
   function openAdd() {
     setEditing(undefined)
@@ -71,6 +106,7 @@ export default function CallsPage() {
 
   const totalCalls = calls.length
   const sales = calls.filter((c) => c.outcome === 'sale').length
+  const outForDelivery = calls.filter((c) => c.outcome === 'out_for_delivery').length
   const pending = calls.filter((c) => c.outcome === 'pending').length
 
   if (loading) return <TableSkeleton cols={7} rows={5} />
@@ -81,10 +117,17 @@ export default function CallsPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Calls</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            {totalCalls} logged · {sales} sales · {pending} pending
+            {totalCalls} logged · {sales} sales · {outForDelivery} out for delivery · {pending} pending
           </p>
         </div>
         <div className="flex gap-2">
+          <button
+            onClick={handleRefresh}
+            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors border border-gray-200"
+            title="Refresh data"
+          >
+            <RefreshCcw size={18} className={loading ? 'animate-spin' : ''} />
+          </button>
           <button
             onClick={() => setShowArchived(!showArchived)}
             className={`flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${showArchived
@@ -143,8 +186,24 @@ export default function CallsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <Badge
-                        variant={call.outcome === 'sale' ? 'sale' : call.outcome === 'not_a_sale' ? 'not_a_sale' : 'pending'}
-                        label={call.outcome === 'sale' ? 'Sale' : call.outcome === 'not_a_sale' ? 'Not a Sale' : 'Pending'}
+                        variant={
+                          call.outcome === 'sale'
+                            ? 'sale'
+                            : call.outcome === 'not_a_sale'
+                              ? 'not_a_sale'
+                              : call.outcome === 'out_for_delivery'
+                                ? 'out_for_delivery'
+                                : 'pending'
+                        }
+                        label={
+                          call.outcome === 'sale'
+                            ? 'Sale'
+                            : call.outcome === 'not_a_sale'
+                              ? 'Not a Sale'
+                              : call.outcome === 'out_for_delivery'
+                                ? 'Out for delivery'
+                                : 'Pending'
+                        }
                       />
                     </td>
                     <td className="px-4 py-3 hidden md:table-cell">

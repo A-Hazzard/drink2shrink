@@ -17,14 +17,14 @@ import type { Product, Call, Order, CallOutcome } from '@/types'
  * Helper to remove undefined values before sending to Firestore
  */
 function cleanData<T extends object>(data: T): T {
-  const clean: any = {}
+  const clean: Record<string, unknown> = {}
   Object.keys(data).forEach((key) => {
-    const val = (data as any)[key]
+    const val = (data as Record<string, unknown>)[key]
     if (val !== undefined) {
       clean[key] = val
     }
   })
-  return clean
+  return clean as T
 }
 
 // ── Products ──────────────────────────────────────────────────────────────────
@@ -114,10 +114,10 @@ export async function addOrder(
     ...data,
     createdAt: serverTimestamp(),
   }))
-  // Link the order back to the call and mark it as a sale
+  // Link the order back to the call and mark outcome
   await updateDoc(doc(db, 'calls', callId), {
     orderId: ref.id,
-    outcome: 'sale' as CallOutcome,
+    outcome: (data.status === 'delivered' ? 'sale' : 'out_for_delivery') as CallOutcome,
   })
   return ref.id
 }
