@@ -8,6 +8,9 @@ const geist = Geist({ subsets: ['latin'], variable: '--font-geist' })
 export const metadata: Metadata = {
   title: 'SaleScope — Network Marketing Sales & Product Management',
   description: 'The professional platform for tracking network marketing sales calls, managing products, and optimizing your lead conversion flow.',
+  icons: {
+    icon: '/logo.png',
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
