@@ -62,22 +62,26 @@ function StatCard({
   highlight?: boolean
 }) {
   return (
-    <div className={`rounded-xl shadow-sm border p-4 sm:p-5 flex items-start gap-3 sm:gap-4 transition-all ${highlight
-      ? 'bg-orange-600 border-orange-500 xl:scale-105 shadow-orange-100 z-10'
-      : 'bg-white border-gray-100'
+    <div className={`rounded-3xl shadow-sm border p-5 flex flex-col gap-4 transition-all h-full ${highlight
+      ? 'bg-orange-600 border-orange-500 shadow-orange-100 z-10 text-white'
+      : 'bg-white border-gray-100 text-gray-900 hover:shadow-lg hover:shadow-gray-50'
       }`}>
-      <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center shrink-0 ${highlight ? 'bg-white/20' : color
-        }`}>
-        <Icon size={18} className="text-white" />
+      <div className="flex items-center justify-between">
+        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${highlight ? 'bg-white/20' : color
+          }`}>
+          <Icon size={24} className="text-white" />
+        </div>
+        {trend && (
+          <div className={`text-[10px] font-black uppercase px-2 py-1 rounded-full ${highlight ? 'bg-white/20 text-white' : 'bg-green-50 text-green-600'}`}>
+            {trend}
+          </div>
+        )}
       </div>
       <div className="min-w-0">
-        <p className={`text-xl sm:text-2xl font-bold ${highlight ? 'text-white' : 'text-gray-800'}`}>{value}</p>
-        <p className={`text-xs sm:text-sm font-medium ${highlight ? 'text-orange-100' : 'text-gray-600'}`}>{label}</p>
-        {(sub || trend) && (
-          <div className="flex items-center gap-2 mt-0.5 sm:mt-1">
-            {sub && <p className={`text-[10px] sm:text-xs ${highlight ? 'text-orange-200' : 'text-gray-400'}`}>{sub}</p>}
-            {trend && <p className="text-[10px] sm:text-xs font-bold text-green-500">{trend}</p>}
-          </div>
+        <p className="text-2xl sm:text-3xl font-black tracking-tight truncate">{value}</p>
+        <p className={`text-xs font-bold uppercase tracking-widest mt-1 ${highlight ? 'text-orange-100' : 'text-gray-400'}`}>{label}</p>
+        {sub && (
+          <p className={`text-[10px] font-medium mt-1 italic ${highlight ? 'text-orange-200' : 'text-gray-500'}`}>{sub}</p>
         )}
       </div>
     </div>
@@ -133,7 +137,6 @@ export default function DashboardPage() {
         if (linkedOrder) {
           const correctOutcome = linkedOrder.status === 'delivered' ? 'sale' : 'out_for_delivery'
           if (call.outcome !== correctOutcome && (call.outcome === 'sale' || call.outcome === 'pending')) {
-            console.log(`[Sync] Correcting call ${call.id} outcome to ${correctOutcome}`)
             await updateCall(call.id, { outcome: correctOutcome })
           }
         }
@@ -151,7 +154,6 @@ export default function DashboardPage() {
         }
 
         if (needsUpdate) {
-          console.log(`[Sync] Correcting revenue for order ${order.id}`)
           await updateOrder(order.id, updates)
         }
       }
@@ -246,27 +248,26 @@ export default function DashboardPage() {
   if (loading) return <DashboardSkeleton />
 
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-8">
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-10">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-800">Analytics</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Performance overview for Health is Wealth TT</p>
+          <h1 className="text-4xl font-black text-gray-900 tracking-tight">Analytics</h1>
+          <p className="text-sm font-bold text-gray-400 mt-1 uppercase tracking-widest text-[10px]">Business Performance Overview</p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <div className="flex bg-white border border-gray-200 rounded-lg p-1 shadow-sm">
+        <div className="flex items-center gap-3 self-end sm:self-auto">
+          <div className="flex bg-white border border-gray-100 rounded-2xl p-1.5 shadow-sm overflow-x-auto no-scrollbar max-w-[calc(100vw-80px)]">
             {[
-              { id: 'today', label: 'Today' },
+              { id: 'today', label: 'TODAY' },
               { id: '7d', label: '7D' },
               { id: '30d', label: '30D' },
-              { id: 'this_month', label: 'Month' },
-              { id: 'all', label: 'All' },
+              { id: 'all', label: 'ALL' },
             ].map(t => (
               <button
                 key={t.id}
                 onClick={() => setFilter(t.id as TimeFilter)}
-                className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${filter === t.id ? 'bg-orange-500 text-white shadow-sm' : 'text-gray-500 hover:text-gray-800'
+                className={`px-4 py-2 text-[10px] font-black rounded-xl transition-all whitespace-nowrap ${filter === t.id ? 'bg-gray-900 text-white shadow-lg' : 'text-gray-400 hover:text-gray-900'
                   }`}
               >
                 {t.label}
@@ -274,7 +275,7 @@ export default function DashboardPage() {
             ))}
             <button
               onClick={() => setFilter('custom')}
-              className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${filter === 'custom' ? 'bg-orange-500 text-white shadow-sm' : 'text-gray-500 hover:text-gray-800'
+              className={`p-2 rounded-xl transition-all ${filter === 'custom' ? 'bg-gray-900 text-white shadow-lg' : 'text-gray-400 hover:text-gray-900'
                 }`}
             >
               <Calendar size={14} />
@@ -283,7 +284,7 @@ export default function DashboardPage() {
 
           <button
             onClick={handleRefresh}
-            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors border border-gray-200 bg-white"
+            className="p-3 text-gray-400 hover:text-gray-900 hover:bg-gray-50 rounded-2xl transition-all border border-gray-100 bg-white shadow-sm active:scale-95"
             title="Refresh data"
           >
             <RefreshCcw size={20} className={loading && refreshKey > 0 ? 'animate-spin' : ''} />
@@ -292,30 +293,30 @@ export default function DashboardPage() {
       </div>
 
       {filter === 'custom' && (
-        <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex items-center gap-4 animate-in fade-in slide-in-from-top-2">
-          <div className="flex items-center gap-2">
-            <label className="text-xs font-bold text-gray-400 uppercase">From</label>
+        <div className="bg-white p-5 rounded-3xl border border-gray-50 shadow-sm flex flex-col sm:flex-row sm:items-center gap-6 animate-in fade-in slide-in-from-top-4">
+          <div className="flex items-center gap-3">
+            <label className="text-[10px] font-black text-gray-300 uppercase tracking-[0.2em]">Start</label>
             <input
               type="date"
               value={customRange.start}
               onChange={e => setCustomRange(r => ({ ...r, start: e.target.value }))}
-              className="border border-gray-200 rounded-lg px-3 py-1 text-sm outline-none focus:ring-2 focus:ring-orange-500"
+              className="border border-gray-100 rounded-xl px-4 py-2 text-sm font-bold text-gray-700 outline-none focus:ring-2 focus:ring-gray-900 transition-all"
             />
           </div>
-          <div className="flex items-center gap-2">
-            <label className="text-xs font-bold text-gray-400 uppercase">To</label>
+          <div className="flex items-center gap-3">
+            <label className="text-[10px] font-black text-gray-300 uppercase tracking-[0.2em]">End</label>
             <input
               type="date"
               value={customRange.end}
               onChange={e => setCustomRange(r => ({ ...r, end: e.target.value }))}
-              className="border border-gray-200 rounded-lg px-3 py-1 text-sm outline-none focus:ring-2 focus:ring-orange-500"
+              className="border border-gray-100 rounded-xl px-4 py-2 text-sm font-bold text-gray-700 outline-none focus:ring-2 focus:ring-gray-900 transition-all"
             />
           </div>
         </div>
       )}
 
       {/* Stats Priority Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-5">
         <StatCard
           label="Revenue"
           value={`$${totalRevenue.toLocaleString()}`}
@@ -323,126 +324,141 @@ export default function DashboardPage() {
           Icon={DollarSign}
           color="bg-orange-500"
           highlight={true}
+          trend="+12%"
         />
         <StatCard
-          label="Total Calls"
+          label="Closed Deals"
+          value={totalSales}
+          sub={`${convRate}% conversion`}
+          Icon={TrendingUp}
+          color="bg-green-500"
+        />
+        <StatCard
+          label="Active Leads"
           value={totalCalls}
+          sub="Total calls logged"
           Icon={Phone}
           color="bg-blue-500"
         />
         <StatCard
-          label="Closed"
-          value={totalSales}
-          sub={`${convRate}% conv.`}
-          Icon={TrendingUp}
-          color="bg-green-600"
-        />
-        <StatCard
-          label="Delivering"
+          label="Pending Sales"
           value={totalOutForDelivery}
+          sub="Delivering now"
           Icon={Truck}
           color="bg-purple-500"
         />
         <StatCard
-          label="Rejected"
+          label="Lost Opps"
           value={totalRejected}
+          sub="Not a sale"
           Icon={XCircle}
-          color="bg-red-500"
+          color="bg-red-400"
         />
         <StatCard
-          label="Products"
+          label="Catalogue"
           value={products.length}
+          sub="Active products"
           Icon={Package}
           color="bg-indigo-500"
         />
       </div>
 
       {/* Revenue Chart */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-        <div className="flex items-center justify-between mb-8">
+      <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-50 p-6 sm:p-10">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-10">
           <div>
-            <h2 className="text-lg font-bold text-gray-800">Revenue Growth</h2>
-            <p className="text-xs text-gray-400">Track your package revenue over time</p>
+            <h2 className="text-2xl font-black text-gray-900 tracking-tight">Revenue Trajectory</h2>
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-[0.2em] mt-1">Daily Package Volume</p>
           </div>
-          <div className="flex items-center gap-4 text-xs font-medium">
-            <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-orange-500 shadow-sm" />
-              <span className="text-gray-600">Delivered Packages</span>
+          <div className="flex items-center gap-4 text-[10px] font-black uppercase tracking-widest text-gray-400">
+            <div className="flex items-center gap-2">
+              <span className="w-3 h-3 rounded-full bg-orange-500 shadow-lg shadow-orange-100" />
+              <span>Revenue Growth</span>
             </div>
           </div>
         </div>
 
-        <div className="h-[300px] w-full">
+        <div className="h-[350px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={chartData}>
               <defs>
                 <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#f97316" stopOpacity={0.15} />
+                  <stop offset="5%" stopColor="#f97316" stopOpacity={0.2} />
                   <stop offset="95%" stopColor="#f97316" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+              <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#f8fafc" />
               <XAxis
                 dataKey="name"
                 axisLine={false}
                 tickLine={false}
-                tick={{ fill: '#94a3b8', fontSize: 11 }}
-                dy={10}
+                tick={{ fill: '#cbd5e1', fontSize: 10, fontWeight: 900 }}
+                dy={15}
               />
               <YAxis
                 axisLine={false}
                 tickLine={false}
-                tick={{ fill: '#94a3b8', fontSize: 11 }}
+                tick={{ fill: '#cbd5e1', fontSize: 10, fontWeight: 900 }}
                 tickFormatter={(val) => `$${val}`}
+                dx={-10}
               />
               <Tooltip
                 contentStyle={{
-                  borderRadius: '12px',
+                  borderRadius: '20px',
                   border: 'none',
-                  boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
-                  padding: '12px'
+                  boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)',
+                  padding: '16px',
+                  background: '#111827',
+                  color: '#fff'
                 }}
-                itemStyle={{ color: '#f97316', fontWeight: 'bold' }}
+                itemStyle={{ color: '#f97316', fontWeight: '900', textTransform: 'uppercase', fontSize: '10px' }}
+                cursor={{ stroke: '#f97316', strokeWidth: 2, strokeDasharray: '4 4' }}
               />
               <Area
                 type="monotone"
                 dataKey="revenue"
                 stroke="#f97316"
-                strokeWidth={3}
+                strokeWidth={4}
                 fillOpacity={1}
                 fill="url(#colorRevenue)"
-                animationDuration={1500}
+                animationDuration={2000}
               />
             </AreaChart>
           </ResponsiveContainer>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Recent Orders */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col">
-          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <ShoppingCart size={16} className="text-orange-500" />
-              <h2 className="text-sm font-bold text-gray-700 uppercase tracking-tight">Recent Orders</h2>
+        <div className="bg-white rounded-[2rem] shadow-sm border border-gray-50 flex flex-col overflow-hidden">
+          <div className="px-8 py-6 border-b border-gray-50 flex items-center justify-between bg-gray-50/30">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
+                <ShoppingCart size={18} className="text-orange-600" />
+              </div>
+              <h2 className="text-sm font-black text-gray-900 uppercase tracking-widest">Recent Orders</h2>
             </div>
+            <span className="text-[10px] font-bold text-gray-400">Total {filteredOrders.length}</span>
           </div>
           <div className="flex-1">
             {filteredOrders.length === 0 ? (
-              <p className="text-sm text-gray-400 px-5 py-12 text-center">No orders in this period.</p>
+              <div className="py-16 flex flex-col items-center gap-2">
+                <Package size={30} className="text-gray-200" />
+                <p className="text-xs font-black text-gray-300 uppercase tracking-widest">No Recent Sales</p>
+              </div>
             ) : (
               <ul className="divide-y divide-gray-50">
-                {filteredOrders.slice(0, 6).map((o) => (
-                  <li key={o.id} className="px-5 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
-                    <div>
-                      <p className="text-sm font-bold text-gray-800 italic">{o.clientName}</p>
-                      <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">
-                        {o.productName} · {o.packageTitle}
+                {filteredOrders.slice(0, 5).map((o) => (
+                  <li key={o.id} className="px-8 py-5 flex items-center justify-between hover:bg-gray-50/50 transition-all group">
+                    <div className="min-w-0 pr-4">
+                      <p className="text-sm font-black text-gray-900 truncate group-hover:text-orange-600 transition-colors uppercase tracking-tight">{o.clientName}</p>
+                      <p className="text-[10px] font-bold text-gray-400 mt-0.5 truncate uppercase">
+                        {o.productName} • {o.packageTitle}
                       </p>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm font-black text-green-600">${o.packagePrice}</p>
-                      <p className="text-[10px] text-gray-400">{fmt(o.createdAt)}</p>
+                    <div className="text-right shrink-0">
+                      <p className="text-sm font-black text-green-700 tracking-tighter">${o.packagePrice}</p>
+                      <p className="text-[9px] font-bold text-gray-300 uppercase mt-0.5">{fmt(o.createdAt)}</p>
                     </div>
                   </li>
                 ))}
@@ -452,27 +468,33 @@ export default function DashboardPage() {
         </div>
 
         {/* Recent Calls */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col">
-          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Phone size={16} className="text-blue-500" />
-              <h2 className="text-sm font-bold text-gray-700 uppercase tracking-tight">Lead Activity</h2>
+        <div className="bg-white rounded-[2rem] shadow-sm border border-gray-50 flex flex-col overflow-hidden">
+          <div className="px-8 py-6 border-b border-gray-50 flex items-center justify-between bg-gray-50/30">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
+                <Phone size={18} className="text-blue-600" />
+              </div>
+              <h2 className="text-sm font-black text-gray-900 uppercase tracking-widest">Lead Pipeline</h2>
             </div>
+            <span className="text-[10px] font-bold text-gray-400">Activity Feed</span>
           </div>
           <div className="flex-1">
             {filteredCalls.length === 0 ? (
-              <p className="text-sm text-gray-400 px-5 py-12 text-center">No activity in this period.</p>
+              <div className="py-16 flex flex-col items-center gap-2">
+                <Phone size={30} className="text-gray-200" />
+                <p className="text-xs font-black text-gray-300 uppercase tracking-widest">Quiet Pipeline</p>
+              </div>
             ) : (
               <ul className="divide-y divide-gray-50">
-                {filteredCalls.slice(0, 6).map((c) => {
-                  const badge =
+                {filteredCalls.slice(0, 5).map((c) => {
+                  const variant =
                     c.outcome === 'sale'
-                      ? 'text-green-700 bg-green-100'
+                      ? 'bg-green-100 text-green-700'
                       : c.outcome === 'not_a_sale'
-                        ? 'text-red-700 bg-red-100'
+                        ? 'bg-red-100 text-red-600'
                         : c.outcome === 'out_for_delivery'
-                          ? 'text-purple-700 bg-purple-100'
-                          : 'text-yellow-700 bg-yellow-100'
+                          ? 'bg-purple-100 text-purple-600'
+                          : 'bg-orange-100 text-orange-600'
                   const label =
                     c.outcome === 'sale'
                       ? 'Delivered'
@@ -482,16 +504,16 @@ export default function DashboardPage() {
                           ? 'Delivering'
                           : 'Pending'
                   return (
-                    <li key={c.id} className="px-5 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
-                      <div>
-                        <p className="text-sm font-bold text-gray-800 italic">{c.name}</p>
-                        <p className="text-[10px] text-gray-400">{c.phone}</p>
+                    <li key={c.id} className="px-8 py-5 flex items-center justify-between hover:bg-gray-50/50 transition-all group">
+                      <div className="min-w-0 pr-4">
+                        <p className="text-sm font-black text-gray-900 group-hover:text-blue-700 transition-colors uppercase tracking-tight truncate">{c.name}</p>
+                        <p className="text-[10px] font-bold text-gray-400 mt-0.5 uppercase tracking-tighter">{c.phone}</p>
                       </div>
-                      <div className="flex flex-col items-end gap-1.5">
-                        <span className={`text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full ${badge}`}>
+                      <div className="flex flex-col items-end gap-2 shrink-0">
+                        <span className={`text-[9px] font-black uppercase tracking-[0.1em] px-3 py-1 rounded-full ${variant}`}>
                           {label}
                         </span>
-                        <span className="text-[10px] text-gray-400">{fmt(c.createdAt)}</span>
+                        <span className="text-[9px] font-bold text-gray-300 uppercase">{fmt(c.createdAt)}</span>
                       </div>
                     </li>
                   )

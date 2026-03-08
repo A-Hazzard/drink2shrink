@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Plus, Pencil, ShoppingCart, Archive, RotateCcw, Trash2, RefreshCcw } from 'lucide-react'
+import { Plus, Pencil, ShoppingCart, Archive, RotateCcw, Trash2, RefreshCcw, DollarSign } from 'lucide-react'
 import { subscribeOrders, subscribeCalls, subscribeProducts, updateOrder, archiveOrder, restoreOrder, deleteOrder, updateCall } from '@/lib/firestore'
 import type { Order, Call, Product } from '@/types'
 import { DELIVERY_AREA_LABELS } from '@/types'
@@ -63,7 +63,6 @@ export default function OrdersPage() {
     const next = order.status === 'pending' ? 'delivered' : 'pending'
     await updateOrder(order.id, { status: next })
 
-    // Sync call outcome
     if (order.callId) {
       await updateCall(order.callId, {
         outcome: next === 'delivered' ? 'sale' : 'out_for_delivery'
@@ -84,10 +83,9 @@ export default function OrdersPage() {
     if (!confirm('PERMANENTLY DELETE this order? This cannot be undone.')) return
     await deleteOrder(order.id)
 
-    // Unlink from call and reset outcome
     if (order.callId) {
       await updateCall(order.callId, {
-        orderId: undefined, // Will be cleaned by cleanData
+        orderId: undefined,
         outcome: 'pending'
       })
     }
@@ -100,168 +98,235 @@ export default function OrdersPage() {
   if (loading) return <TableSkeleton cols={8} rows={5} />
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
+    <div className="p-4 sm:p-6 max-w-6xl mx-auto">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Orders</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            {orders.length} orders · Revenue (packages):{' '}
-            <span className="text-green-700 font-semibold">${totalRevenue.toLocaleString()} TTD</span>
-          </p>
+          <h1 className="text-3xl font-black text-gray-900 tracking-tight">Orders</h1>
+          <div className="flex items-center gap-2 mt-1">
+            <div className="flex items-center gap-1 bg-green-50 px-2 py-0.5 rounded-full border border-green-100">
+              <DollarSign size={12} className="text-green-600" />
+              <span className="text-xs font-black text-green-700 uppercase tracking-tighter">
+                ${totalRevenue.toLocaleString()} Revenue
+              </span>
+            </div>
+            <span className="text-xs font-bold text-gray-400">• {orders.length} total</span>
+          </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2 self-end sm:self-auto">
           <button
             onClick={handleRefresh}
-            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors border border-gray-200"
+            className="p-2.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-all border border-gray-200 shadow-sm active:scale-95"
             title="Refresh data"
           >
-            <RefreshCcw size={18} className={loading && refreshKey > 0 ? 'animate-spin' : ''} />
+            <RefreshCcw size={20} className={loading && refreshKey > 0 ? 'animate-spin' : ''} />
           </button>
           <button
             onClick={() => setShowArchived(!showArchived)}
-            className={`flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${showArchived
-              ? 'bg-gray-800 text-white border-gray-800'
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-bold rounded-xl border transition-all shadow-sm active:scale-95 ${showArchived
+              ? 'bg-gray-900 text-white border-gray-800'
               : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
               }`}
           >
-            <Archive size={16} />
-            {showArchived ? 'View Active' : 'View Archived'}
+            <Archive size={18} />
+            <span className="hidden xs:inline">{showArchived ? 'Active' : 'Archived'}</span>
           </button>
           <button
             onClick={openAdd}
-            className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white text-sm font-medium rounded-lg hover:bg-orange-600 transition-colors"
+            className="flex items-center gap-2 px-6 py-2.5 bg-orange-600 text-white text-sm font-black rounded-xl hover:bg-orange-700 transition-all shadow-lg shadow-orange-100 active:scale-95 uppercase tracking-wider"
           >
-            <Plus size={16} />
-            Place Order
+            <Plus size={18} strokeWidth={3} />
+            NEW ORDER
           </button>
         </div>
       </div>
 
       {orders.length === 0 ? (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 py-16 flex flex-col items-center gap-3">
-          <ShoppingCart size={40} className="text-gray-300" />
-          <p className="text-gray-500 font-medium">{showArchived ? 'No archived orders' : 'No orders yet'}</p>
+        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 py-20 flex flex-col items-center gap-4 text-center px-6">
+          <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center">
+            <ShoppingCart size={40} className="text-gray-300" />
+          </div>
+          <div>
+            <p className="text-gray-900 font-black text-lg">{showArchived ? 'No archived orders' : 'Your order book is empty'}</p>
+            <p className="text-gray-500 text-sm mt-1">Ready to fulfill some wellness goals?</p>
+          </div>
           {!showArchived && (
             calls.length > 0 && products.length > 0 ? (
               <button
                 onClick={openAdd}
-                className="text-sm text-orange-500 font-medium hover:underline"
+                className="mt-2 px-8 py-3 bg-orange-50 text-orange-600 font-black rounded-xl hover:bg-orange-100 transition-colors uppercase tracking-wider text-xs"
               >
-                Place your first order
+                Place First Order
               </button>
             ) : (
-              <p className="text-sm text-gray-400">
-                Add products and log calls first to place an order.
-              </p>
+              <div className="mt-2 max-w-xs">
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest leading-relaxed">
+                  Add products and log calls first to enable ordering system.
+                </p>
+              </div>
             )
           )}
         </div>
       ) : (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                  <th className="px-4 py-3">Client</th>
-                  <th className="px-4 py-3 hidden sm:table-cell">Product</th>
-                  <th className="px-4 py-3 hidden md:table-cell">Package</th>
-                  <th className="px-4 py-3 hidden lg:table-cell">Area</th>
-                  <th className="px-4 py-3">Total</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3 hidden lg:table-cell">Date</th>
-                  <th className="px-4 py-3">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {orders.map((order) => (
-                  <tr key={order.id} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="px-4 py-3">
-                      <p className="font-medium text-gray-800">{order.clientName}</p>
-                      <p className="text-xs text-gray-400">{order.clientPhone}</p>
-                    </td>
-                    <td className="px-4 py-3 text-gray-600 hidden sm:table-cell">
-                      {order.productName}
-                    </td>
-                    <td className="px-4 py-3 text-gray-600 hidden md:table-cell">
-                      {order.packageTitle}
-                    </td>
-                    <td className="px-4 py-3 text-gray-600 hidden lg:table-cell text-xs">
+        <>
+          {/* Desktop Table View */}
+          <div className="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50/50 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">
+                    <th className="px-6 py-4">Client</th>
+                    <th className="px-6 py-4">Package Details</th>
+                    <th className="px-6 py-4">Fulfillment</th>
+                    <th className="px-6 py-4">Status</th>
+                    <th className="px-6 py-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {orders.map((order) => (
+                    <tr key={order.id} className="group hover:bg-orange-50/20 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="font-bold text-gray-900 group-hover:text-orange-700 transition-colors">{order.clientName}</div>
+                        <div className="text-[10px] text-gray-400 font-bold uppercase mt-0.5 tracking-tight">{order.clientPhone}</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-xs font-black text-gray-800 uppercase tracking-tighter">{order.productName}</div>
+                        <div className="text-[10px] text-gray-500 font-medium mt-0.5">{order.packageTitle}</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-[10px] font-black text-green-700 uppercase tracking-tighter">$ {order.packagePrice}</div>
+                        <div className="text-[10px] text-gray-400 font-medium mt-0.5 capitalize">{DELIVERY_AREA_LABELS[order.area]}</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <button
+                          onClick={() => toggleStatus(order)}
+                          className="active:scale-95 transition-transform"
+                        >
+                          <Badge
+                            variant={order.status === 'delivered' ? 'delivered' : 'pending'}
+                            label={order.status === 'delivered' ? 'Delivered' : 'Pending'}
+                          />
+                        </button>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={() => openEdit(order)}
+                            className="p-2 text-gray-400 hover:text-orange-600 transition-colors"
+                            title="Edit"
+                          >
+                            <Pencil size={16} />
+                          </button>
+                          <button
+                            onClick={() => showArchived ? handleRestore(order.id) : handleArchive(order.id)}
+                            className={`p-2 transition-colors ${showArchived ? 'text-blue-400 hover:text-blue-700' : 'text-orange-300 hover:text-orange-600'}`}
+                            title={showArchived ? 'Restore' : 'Archive'}
+                          >
+                            {showArchived ? <RotateCcw size={16} /> : <Archive size={16} />}
+                          </button>
+                          <button
+                            onClick={() => handleDelete(order)}
+                            className="p-2 text-gray-300 hover:text-red-600 transition-colors"
+                            title="Delete"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Mobile Card View */}
+          <div className="md:hidden space-y-4">
+            {orders.map((order) => (
+              <div
+                key={order.id}
+                className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm space-y-4 active:scale-[0.98] transition-all"
+              >
+                <div className="flex items-start justify-between">
+                  <div className="min-w-0 pr-2">
+                    <h3 className="font-black text-gray-900 text-lg leading-tight truncate">{order.clientName}</h3>
+                    <p className="text-sm font-bold text-gray-400 mt-1 uppercase tracking-tight">{order.clientPhone}</p>
+                  </div>
+                  <button
+                    onClick={() => toggleStatus(order)}
+                    className="shrink-0 active:scale-90 transition-transform"
+                  >
+                    <Badge
+                      variant={order.status === 'delivered' ? 'delivered' : 'pending'}
+                      label={order.status === 'delivered' ? 'Delivered' : 'Pending'}
+                    />
+                  </button>
+                </div>
+
+                <div className="bg-gray-50/50 p-3 rounded-xl border border-gray-100 space-y-2">
+                  <div className="flex justify-between items-center">
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Product</p>
+                    <p className="text-xs font-black text-gray-800 uppercase tracking-tighter">{order.productName}</p>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Package</p>
+                    <p className="text-xs font-bold text-gray-600">{order.packageTitle}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-6 pt-2">
+                  <div className="flex-1">
+                    <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Price</p>
+                    <p className="text-sm font-black text-green-700 tracking-tighter mt-1">${order.packagePrice}</p>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Area</p>
+                    <p className="text-xs font-bold text-gray-600 mt-1 uppercase tracking-tighter truncate">
                       {DELIVERY_AREA_LABELS[order.area]}
-                    </td>
-                    <td className="px-4 py-3">
-                      <p className="font-semibold text-green-700">${order.packagePrice}</p>
-                      {order.deliveryFee > 0 && (
-                        <p className="text-xs text-gray-400">+${order.deliveryFee} delivery</p>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <button
-                        onClick={() => toggleStatus(order)}
-                        title="Click to toggle status"
-                      >
-                        <Badge
-                          variant={order.status === 'delivered' ? 'delivered' : 'pending'}
-                          label={order.status === 'delivered' ? 'Delivered' : 'Pending'}
-                        />
-                      </button>
-                    </td>
-                    <td className="px-4 py-3 text-gray-400 hidden lg:table-cell">
+                    </p>
+                  </div>
+                  <div className="flex-1 text-right">
+                    <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Date</p>
+                    <p className="text-xs font-bold text-gray-400 mt-1">
                       {order.deliveryDate
                         ? new Date(order.deliveryDate).toLocaleDateString('en-TT', { day: 'numeric', month: 'short' })
                         : fmt(order.createdAt)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1.5">
-                        {!showArchived ? (
-                          <>
-                            <button
-                              onClick={() => openEdit(order)}
-                              className="p-1.5 text-gray-400 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors"
-                              title="Edit"
-                            >
-                              <Pencil size={14} />
-                            </button>
-                            <button
-                              onClick={() => handleArchive(order.id)}
-                              className="p-1.5 text-gray-400 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
-                              title="Archive"
-                            >
-                              <Archive size={14} />
-                            </button>
-                            <button
-                              onClick={() => handleDelete(order)}
-                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                              title="Delete permanently"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <button
-                              onClick={() => handleRestore(order.id)}
-                              className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                              title="Restore"
-                            >
-                              <RotateCcw size={14} />
-                            </button>
-                            <button
-                              onClick={() => handleDelete(order)}
-                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                              title="Delete permanently"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-4 border-t border-gray-50">
+                  <button
+                    onClick={() => openEdit(order)}
+                    className="p-2.5 text-gray-400 hover:text-orange-600 hover:bg-orange-50 rounded-xl transition-colors border border-gray-50 shadow-sm"
+                  >
+                    <Pencil size={16} />
+                  </button>
+                  {!showArchived ? (
+                    <button
+                      onClick={() => handleArchive(order.id)}
+                      className="p-2.5 text-gray-400 hover:text-orange-600 hover:bg-orange-50 rounded-xl transition-colors border border-gray-50 shadow-sm"
+                    >
+                      <Archive size={16} />
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleRestore(order.id)}
+                      className="p-2.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-colors border border-gray-50 shadow-sm"
+                    >
+                      <RotateCcw size={16} />
+                    </button>
+                  )}
+                  <button
+                    onClick={() => handleDelete(order)}
+                    className="p-2.5 text-gray-300 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors border border-gray-50 shadow-sm"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
-        </div>
+        </>
       )}
 
       {showForm && (

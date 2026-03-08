@@ -51,7 +51,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <>
       <Sidebar />
-      <main className="lg:pl-60 pt-14 lg:pt-0 min-h-screen animate-fade-in">
+      <main className="lg:pl-64 pt-16 lg:pt-0 min-h-screen animate-fade-in bg-[#fdfdfd]">
         {children}
       </main>
       <ToastContainer />
