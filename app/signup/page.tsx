@@ -7,7 +7,7 @@ import { createOrUpdateProfile } from '@/lib/firestore'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useToast } from '@/contexts/ToastContext'
-import { UserPlus, Leaf, Eye, EyeOff, Building2, Mail, Lock, Camera } from 'lucide-react'
+import { UserPlus, BarChart3, Eye, EyeOff, Building2, Mail, Lock, Camera } from 'lucide-react'
 
 export default function SignupPage() {
     const [businessName, setBusinessName] = useState('')
@@ -49,11 +49,11 @@ export default function SignupPage() {
                 {/* Branding */}
                 <div className="flex flex-col items-center text-center space-y-4">
                     <div className="w-20 h-20 bg-emerald-600 rounded-[28px] flex items-center justify-center shadow-2xl shadow-emerald-200 rotate-3 transition-transform hover:rotate-0 duration-500">
-                        <Leaf size={36} className="text-white fill-white/10" />
+                        <BarChart3 size={36} className="text-white fill-white/10" />
                     </div>
                     <div className="space-y-1">
-                        <h1 className="text-3xl font-black text-gray-900 tracking-tight">Health is Wealth</h1>
-                        <p className="text-[10px] font-black text-emerald-600 uppercase tracking-[0.2em]">Business Sales Tracker</p>
+                        <h1 className="text-3xl font-black text-gray-900 tracking-tight">SaleScope</h1>
+                        <p className="text-[10px] font-black text-emerald-600 uppercase tracking-[0.2em]">Sales Call & Product Management</p>
                     </div>
                 </div>
 
@@ -163,7 +163,7 @@ export default function SignupPage() {
 
                 {/* Footer */}
                 <p className="text-center text-[10px] font-bold text-gray-300 uppercase tracking-widest">
-                    © {new Date().getFullYear()} Health is Wealth TT
+                    © {new Date().getFullYear()} SaleScope Network Marketing
                 </p>
             </div>
         </div>

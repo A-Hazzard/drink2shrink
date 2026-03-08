@@ -9,7 +9,7 @@ import {
     Mail,
     Camera,
     Save,
-    Leaf,
+    BarChart3,
     ChevronRight,
     ShieldCheck,
     LogOut
@@ -71,12 +71,12 @@ export default function ProfilePage() {
                                 {logoUrl ? (
                                     <img src={logoUrl} alt="Logo" className="w-full h-full object-cover" />
                                 ) : (
-                                    <Leaf size={48} className="text-emerald-600 fill-emerald-600/10" />
+                                    <BarChart3 size={48} className="text-emerald-600 fill-emerald-600/10" />
                                 )}
                             </div>
                         </div>
                         <div className="space-y-1">
-                            <h3 className="text-xl font-black text-gray-900">{profile?.businessName || 'Your Business'}</h3>
+                            <h3 className="text-xl font-black text-gray-900">{profile?.businessName || 'SaleScope Business'}</h3>
                             <p className="text-xs font-bold text-gray-400 flex items-center justify-center gap-1.5">
                                 <Mail size={12} className="text-emerald-500" />
                                 {user?.email}
@@ -110,7 +110,7 @@ export default function ProfilePage() {
                                         value={businessName}
                                         onChange={(e) => setBusinessName(e.target.value)}
                                         className="w-full bg-gray-50 border-transparent rounded-2xl px-6 py-4 text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all shadow-sm"
-                                        placeholder="Health Is Wealth"
+                                        placeholder="SaleScope Network"
                                     />
                                 </div>
 

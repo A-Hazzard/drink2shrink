@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, Package, Phone, ShoppingCart, Menu, X, Leaf, LogOut, ChevronLeft, ChevronRight, User } from 'lucide-react'
+import { LayoutDashboard, Package, Phone, ShoppingCart, Menu, X, BarChart3, LogOut, ChevronLeft, ChevronRight, User } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import gsap from 'gsap'
 import { useLayoutEffect, useRef } from 'react'
@@ -51,13 +51,13 @@ function Brand({ collapsed }: { collapsed?: boolean }) {
         {profile?.logoUrl ? (
           <img src={profile.logoUrl} alt="Logo" className="w-full h-full object-cover" />
         ) : (
-          <Leaf size={20} className="text-white fill-white/10" />
+          <BarChart3 size={20} className="text-white fill-white/10" />
         )}
       </div>
       {!collapsed && (
         <div className="min-w-0">
           <p className="text-gray-900 font-black text-sm leading-tight tracking-tight uppercase truncate">
-            {profile?.businessName || 'HealthIsWealth'}
+            {profile?.businessName || 'SaleScope'}
           </p>
           <p className="text-emerald-600 text-[10px] font-black uppercase tracking-[0.15em] mt-0.5 opacity-60">
             Sales Engine
@@ -169,11 +169,11 @@ export default function Sidebar() {
             {profile?.logoUrl ? (
               <img src={profile.logoUrl} alt="Logo" className="w-full h-full object-cover" />
             ) : (
-              <Leaf size={16} className="text-white fill-white/10" />
+              <BarChart3 size={16} className="text-white fill-white/10" />
             )}
           </div>
           <span className="text-gray-900 font-black text-[11px] uppercase tracking-widest truncate max-w-[150px]">
-            {profile?.businessName || 'HealthIsWealth'}
+            {profile?.businessName || 'SaleScope'}
           </span>
         </div>
       </div>

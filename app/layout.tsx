@@ -6,8 +6,8 @@ import Providers from '@/components/Providers'
 const geist = Geist({ subsets: ['latin'], variable: '--font-geist' })
 
 export const metadata: Metadata = {
-  title: 'Health is Wealth TT — Sales Tracker',
-  description: 'Sales tracking and order management for Health is Wealth TT',
+  title: 'SaleScope — Network Marketing Sales & Product Management',
+  description: 'The professional platform for tracking network marketing sales calls, managing products, and optimizing your lead conversion flow.',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
