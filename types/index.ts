@@ -13,10 +13,19 @@ export interface Product {
   packages: Package[]
   archivedAt?: { seconds: number; nanoseconds: number }
   createdAt?: { seconds: number; nanoseconds: number }
+  ownerEmail: string
+}
+
+export interface UserProfile {
+  id: string
+  email: string
+  businessName: string
+  logoUrl?: string
+  createdAt?: { seconds: number; nanoseconds: number }
 }
 
 export type CallGoal = 'lose_weight' | 'detox' | 'both'
-export type CallOutcome = 'pending' | 'sale' | 'not_a_sale' | 'out_for_delivery'
+export type CallOutcome = 'pending' | 'delivered' | 'rejected' | 'delivering' | 'interested_future'
 export const DELIVERY_FEES = {
   // NORTH-WEST / NORTH
   chaguaramas: 60,
@@ -134,11 +143,13 @@ export interface Call {
   outcome: CallOutcome
   notes?: string
   orderId?: string
+  followUpDate?: string
   archivedAt?: { seconds: number; nanoseconds: number }
   createdAt?: { seconds: number; nanoseconds: number }
+  ownerEmail: string
 }
 
-export type OrderStatus = 'pending' | 'delivered'
+export type OrderStatus = 'pending' | 'delivered' | 'delivering' | 'interested_future'
 
 export interface Order {
   id: string
@@ -155,6 +166,8 @@ export interface Order {
   totalPrice: number
   deliveryDate?: string
   status: OrderStatus
+  followUpDate?: string
   archivedAt?: { seconds: number; nanoseconds: number }
   createdAt?: { seconds: number; nanoseconds: number }
+  ownerEmail: string
 }

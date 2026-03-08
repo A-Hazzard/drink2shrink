@@ -10,7 +10,9 @@ import {
   XCircle,
   RefreshCcw,
   Truck,
-  Calendar
+  Calendar,
+  Clock,
+  CalendarDays
 } from 'lucide-react'
 import {
   XAxis,
@@ -36,8 +38,12 @@ import {
   startOfYear,
 } from 'date-fns'
 import { subscribeCalls, subscribeOrders, subscribeProducts, updateCall, updateOrder } from '@/lib/firestore'
-import type { Call, Order, Product } from '@/types'
+import type { Call, Order, Product, CallOutcome } from '@/types'
 import DashboardSkeleton from '@/components/skeletons/DashboardSkeleton'
+import { DateRangePicker } from '@/components/ui/date-range-picker'
+import { DateRange } from 'react-day-picker'
+import { useAuth } from '@/contexts/AuthContext'
+import { useRouter } from 'next/navigation'
 
 // === Types ===
 type TimeFilter = 'today' | 'yesterday' | '7d' | '30d' | 'this_month' | 'last_month' | '6m' | '12m' | 'all' | 'custom'
@@ -63,7 +69,7 @@ function StatCard({
 }) {
   return (
     <div className={`rounded-3xl shadow-sm border p-5 flex flex-col gap-4 transition-all h-full ${highlight
-      ? 'bg-orange-600 border-orange-500 shadow-orange-100 z-10 text-white'
+      ? 'bg-green-700 border-green-600 shadow-green-100 z-10 text-white'
       : 'bg-white border-gray-100 text-gray-900 hover:shadow-lg hover:shadow-gray-50'
       }`}>
       <div className="flex items-center justify-between">
@@ -79,9 +85,9 @@ function StatCard({
       </div>
       <div className="min-w-0">
         <p className="text-2xl sm:text-3xl font-black tracking-tight truncate">{value}</p>
-        <p className={`text-xs font-bold uppercase tracking-widest mt-1 ${highlight ? 'text-orange-100' : 'text-gray-400'}`}>{label}</p>
+        <p className={`text-xs font-bold uppercase tracking-widest mt-1 ${highlight ? 'text-green-100' : 'text-gray-400'}`}>{label}</p>
         {sub && (
-          <p className={`text-[10px] font-medium mt-1 italic ${highlight ? 'text-orange-200' : 'text-gray-500'}`}>{sub}</p>
+          <p className={`text-[10px] font-medium mt-1 italic ${highlight ? 'text-green-200' : 'text-gray-500'}`}>{sub}</p>
         )}
       </div>
     </div>
@@ -100,6 +106,8 @@ function fmt(ts?: { seconds: number }) {
 // === Main Page ===
 
 export default function DashboardPage() {
+  const { user, loading: authLoading } = useAuth()
+  const router = useRouter()
   const [calls, setCalls] = useState<Call[]>([])
   const [orders, setOrders] = useState<Order[]>([])
   const [products, setProducts] = useState<Product[]>([])
@@ -108,18 +116,20 @@ export default function DashboardPage() {
 
   // Filtering state
   const [filter, setFilter] = useState<TimeFilter>('30d')
-  const [customRange, setCustomRange] = useState({ start: '', end: '' })
+  const [customRange, setCustomRange] = useState<DateRange | undefined>(undefined)
 
   // --- Data Loading ---
   useEffect(() => {
+    if (!user?.email) return
+
     setLoading(true)
     let done = false
     const clear = () => { if (!done) { done = true; setLoading(false) } }
-    const u1 = subscribeCalls((d) => { setCalls(d); clear() })
-    const u2 = subscribeOrders((d) => { setOrders(d); clear() })
-    const u3 = subscribeProducts((d) => { setProducts(d); clear() })
+    const u1 = subscribeCalls(user.email, (d: Call[]) => { setCalls(d); clear() })
+    const u2 = subscribeOrders(user.email, (d: Order[]) => { setOrders(d); clear() })
+    const u3 = subscribeProducts(user.email, (d: Product[]) => { setProducts(d); clear() })
     return () => { u1(); u2(); u3() }
-  }, [refreshKey])
+  }, [refreshKey, user])
 
   function handleRefresh() {
     setLoading(true)
@@ -135,8 +145,8 @@ export default function DashboardPage() {
       for (const call of calls) {
         const linkedOrder = orders.find(o => o.id === call.orderId || o.callId === call.id)
         if (linkedOrder) {
-          const correctOutcome = linkedOrder.status === 'delivered' ? 'sale' : 'out_for_delivery'
-          if (call.outcome !== correctOutcome && (call.outcome === 'sale' || call.outcome === 'pending')) {
+          const correctOutcome = linkedOrder.status as CallOutcome
+          if (call.outcome !== correctOutcome && (call.outcome === 'delivered' || call.outcome === 'pending')) {
             await updateCall(call.id, { outcome: correctOutcome })
           }
         }
@@ -176,8 +186,8 @@ export default function DashboardPage() {
       case '6m': return { start: startOfMonth(subMonths(now, 5)), end: endOfMonth(now) }
       case '12m': return { start: startOfMonth(subMonths(now, 11)), end: endOfMonth(now) }
       case 'custom':
-        if (!customRange.start || !customRange.end) return null
-        return { start: startOfDay(new Date(customRange.start)), end: endOfDay(new Date(customRange.end)) }
+        if (!customRange?.from || !customRange?.to) return null
+        return { start: startOfDay(customRange.from), end: endOfDay(customRange.to) }
       default: return null
     }
   }
@@ -203,12 +213,15 @@ export default function DashboardPage() {
   }, [calls, filter, interval])
 
   const totalCalls = filteredCalls.length
-  const totalSales = filteredCalls.filter((c) => c.outcome === 'sale').length
-  const totalOutForDelivery = filteredCalls.filter(c => c.outcome === 'out_for_delivery').length
-  const totalRejected = filteredCalls.filter((c) => c.outcome === 'not_a_sale').length
+  const totalSales = filteredCalls.filter((c) => c.outcome === 'delivered').length
+  const totalOutForDelivery = filteredCalls.filter(c => c.outcome === 'delivering').length
+  const totalRejected = filteredCalls.filter((c) => c.outcome === 'rejected').length
+  const totalInterestedFuture = filteredCalls.filter((c) => c.outcome === 'interested_future').length
+
   const totalRevenue = filteredOrders
     .filter((o) => o.status === 'delivered' && !o.archivedAt)
     .reduce((sum, o) => sum + (o.packagePrice ?? 0), 0)
+
   const convRate = totalCalls > 0 ? Math.round((totalSales / totalCalls) * 100) : 0
 
   // --- Chart Data Processing ---
@@ -245,7 +258,8 @@ export default function DashboardPage() {
     })
   }, [orders, filter, interval])
 
-  if (loading) return <DashboardSkeleton />
+  if (authLoading || (loading && refreshKey === 0)) return <DashboardSkeleton />
+  if (!user) return null
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-10">
@@ -278,7 +292,7 @@ export default function DashboardPage() {
               className={`p-2 rounded-xl transition-all ${filter === 'custom' ? 'bg-gray-900 text-white shadow-lg' : 'text-gray-400 hover:text-gray-900'
                 }`}
             >
-              <Calendar size={14} />
+              <CalendarDays size={18} />
             </button>
           </div>
 
@@ -293,25 +307,21 @@ export default function DashboardPage() {
       </div>
 
       {filter === 'custom' && (
-        <div className="bg-white p-5 rounded-3xl border border-gray-50 shadow-sm flex flex-col sm:flex-row sm:items-center gap-6 animate-in fade-in slide-in-from-top-4">
-          <div className="flex items-center gap-3">
-            <label className="text-[10px] font-black text-gray-300 uppercase tracking-[0.2em]">Start</label>
-            <input
-              type="date"
-              value={customRange.start}
-              onChange={e => setCustomRange(r => ({ ...r, start: e.target.value }))}
-              className="border border-gray-100 rounded-xl px-4 py-2 text-sm font-bold text-gray-700 outline-none focus:ring-2 focus:ring-gray-900 transition-all"
-            />
+        <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-6 animate-in fade-in slide-in-from-top-4">
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center">
+              <CalendarDays size={18} className="text-green-700" />
+            </div>
+            <div>
+              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Date Range Filter</p>
+              <p className="text-xs font-bold text-gray-900">Select start and end dates</p>
+            </div>
           </div>
-          <div className="flex items-center gap-3">
-            <label className="text-[10px] font-black text-gray-300 uppercase tracking-[0.2em]">End</label>
-            <input
-              type="date"
-              value={customRange.end}
-              onChange={e => setCustomRange(r => ({ ...r, end: e.target.value }))}
-              className="border border-gray-100 rounded-xl px-4 py-2 text-sm font-bold text-gray-700 outline-none focus:ring-2 focus:ring-gray-900 transition-all"
-            />
-          </div>
+          <DateRangePicker
+            date={customRange}
+            setDate={setCustomRange}
+            placeholder="Select date interval"
+          />
         </div>
       )}
 
@@ -322,7 +332,7 @@ export default function DashboardPage() {
           value={`$${totalRevenue.toLocaleString()}`}
           sub="Package only"
           Icon={DollarSign}
-          color="bg-orange-500"
+          color="bg-green-700"
           highlight={true}
           trend="+12%"
         />
@@ -341,25 +351,25 @@ export default function DashboardPage() {
           color="bg-blue-500"
         />
         <StatCard
-          label="Pending Sales"
+          label="Future Ops"
+          value={totalInterestedFuture}
+          sub="Wait-listed goals"
+          Icon={Clock}
+          color="bg-indigo-500"
+        />
+        <StatCard
+          label="In Transit"
           value={totalOutForDelivery}
           sub="Delivering now"
           Icon={Truck}
-          color="bg-purple-500"
+          color="bg-orange-500"
         />
         <StatCard
           label="Lost Opps"
           value={totalRejected}
-          sub="Not a sale"
+          sub="Rejected leads"
           Icon={XCircle}
           color="bg-red-400"
-        />
-        <StatCard
-          label="Catalogue"
-          value={products.length}
-          sub="Active products"
-          Icon={Package}
-          color="bg-indigo-500"
         />
       </div>
 
@@ -372,7 +382,7 @@ export default function DashboardPage() {
           </div>
           <div className="flex items-center gap-4 text-[10px] font-black uppercase tracking-widest text-gray-400">
             <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-orange-500 shadow-lg shadow-orange-100" />
+              <span className="w-3 h-3 rounded-full bg-green-700 shadow-lg shadow-green-100" />
               <span>Revenue Growth</span>
             </div>
           </div>
@@ -383,8 +393,8 @@ export default function DashboardPage() {
             <AreaChart data={chartData}>
               <defs>
                 <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#f97316" stopOpacity={0.2} />
-                  <stop offset="95%" stopColor="#f97316" stopOpacity={0} />
+                  <stop offset="5%" stopColor="#15803d" stopOpacity={0.2} />
+                  <stop offset="95%" stopColor="#15803d" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#f8fafc" />
@@ -411,13 +421,13 @@ export default function DashboardPage() {
                   background: '#111827',
                   color: '#fff'
                 }}
-                itemStyle={{ color: '#f97316', fontWeight: '900', textTransform: 'uppercase', fontSize: '10px' }}
-                cursor={{ stroke: '#f97316', strokeWidth: 2, strokeDasharray: '4 4' }}
+                itemStyle={{ color: '#22c55e', fontWeight: '900', textTransform: 'uppercase', fontSize: '10px' }}
+                cursor={{ stroke: '#15803d', strokeWidth: 2, strokeDasharray: '4 4' }}
               />
               <Area
                 type="monotone"
                 dataKey="revenue"
-                stroke="#f97316"
+                stroke="#15803d"
                 strokeWidth={4}
                 fillOpacity={1}
                 fill="url(#colorRevenue)"
@@ -433,8 +443,8 @@ export default function DashboardPage() {
         <div className="bg-white rounded-[2rem] shadow-sm border border-gray-50 flex flex-col overflow-hidden">
           <div className="px-8 py-6 border-b border-gray-50 flex items-center justify-between bg-gray-50/30">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
-                <ShoppingCart size={18} className="text-orange-600" />
+              <div className="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center">
+                <ShoppingCart size={18} className="text-green-700" />
               </div>
               <h2 className="text-sm font-black text-gray-900 uppercase tracking-widest">Recent Orders</h2>
             </div>
@@ -451,7 +461,7 @@ export default function DashboardPage() {
                 {filteredOrders.slice(0, 5).map((o) => (
                   <li key={o.id} className="px-8 py-5 flex items-center justify-between hover:bg-gray-50/50 transition-all group">
                     <div className="min-w-0 pr-4">
-                      <p className="text-sm font-black text-gray-900 truncate group-hover:text-orange-600 transition-colors uppercase tracking-tight">{o.clientName}</p>
+                      <p className="text-sm font-black text-gray-900 truncate group-hover:text-green-700 transition-colors uppercase tracking-tight">{o.clientName}</p>
                       <p className="text-[10px] font-bold text-gray-400 mt-0.5 truncate uppercase">
                         {o.productName} • {o.packageTitle}
                       </p>
@@ -471,8 +481,8 @@ export default function DashboardPage() {
         <div className="bg-white rounded-[2rem] shadow-sm border border-gray-50 flex flex-col overflow-hidden">
           <div className="px-8 py-6 border-b border-gray-50 flex items-center justify-between bg-gray-50/30">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
-                <Phone size={18} className="text-blue-600" />
+              <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center">
+                <Phone size={18} className="text-blue-700" />
               </div>
               <h2 className="text-sm font-black text-gray-900 uppercase tracking-widest">Lead Pipeline</h2>
             </div>
@@ -488,21 +498,25 @@ export default function DashboardPage() {
               <ul className="divide-y divide-gray-50">
                 {filteredCalls.slice(0, 5).map((c) => {
                   const variant =
-                    c.outcome === 'sale'
+                    c.outcome === 'delivered'
                       ? 'bg-green-100 text-green-700'
-                      : c.outcome === 'not_a_sale'
+                      : c.outcome === 'rejected'
                         ? 'bg-red-100 text-red-600'
-                        : c.outcome === 'out_for_delivery'
-                          ? 'bg-purple-100 text-purple-600'
-                          : 'bg-orange-100 text-orange-600'
+                        : c.outcome === 'delivering'
+                          ? 'bg-orange-100 text-orange-600'
+                          : c.outcome === 'interested_future'
+                            ? 'bg-blue-100 text-blue-800'
+                            : 'bg-gray-100 text-gray-600'
                   const label =
-                    c.outcome === 'sale'
+                    c.outcome === 'delivered'
                       ? 'Delivered'
-                      : c.outcome === 'not_a_sale'
+                      : c.outcome === 'rejected'
                         ? 'Rejected'
-                        : c.outcome === 'out_for_delivery'
+                        : c.outcome === 'delivering'
                           ? 'Delivering'
-                          : 'Pending'
+                          : c.outcome === 'interested_future'
+                            ? 'Future'
+                            : 'Pending'
                   return (
                     <li key={c.id} className="px-8 py-5 flex items-center justify-between hover:bg-gray-50/50 transition-all group">
                       <div className="min-w-0 pr-4">

@@ -6,8 +6,12 @@ import { subscribeProducts, deleteProduct, archiveProduct, restoreProduct } from
 import type { Product } from '@/types'
 import Modal from '@/components/Modal'
 import ProductForm from '@/components/products/ProductForm'
+import { useAuth } from '@/contexts/AuthContext'
+import { useRouter } from 'next/navigation'
 
 export default function ProductsPage() {
+  const { user, loading: authLoading } = useAuth()
+  const router = useRouter()
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -17,12 +21,13 @@ export default function ProductsPage() {
   const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
+    if (!user?.email) return
     setLoading(true)
-    return subscribeProducts((data) => {
+    return subscribeProducts(user.email, (data) => {
       setProducts(data)
       setLoading(false)
     }, showArchived)
-  }, [showArchived, refreshKey])
+  }, [showArchived, refreshKey, user])
 
   function handleRefresh() {
     setLoading(true)
@@ -62,6 +67,13 @@ export default function ProductsPage() {
   async function handleRestore(id: string) {
     await restoreProduct(id)
   }
+
+  if (authLoading || (loading && products.length === 0)) return (
+    <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-6">
+      <div className="h-64 bg-gray-50 rounded-3xl animate-pulse" />
+    </div>
+  )
+  if (!user) return null
 
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto">

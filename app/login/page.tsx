@@ -1,143 +1,127 @@
 'use client'
 
 import { useState } from 'react'
-import { Leaf, Eye, EyeOff } from 'lucide-react'
-import { useAuth } from '@/contexts/AuthContext'
-import Spinner from '@/components/Spinner'
-
-function getAuthError(code: string): string {
-  switch (code) {
-    case 'auth/invalid-email':        return 'Please enter a valid email address.'
-    case 'auth/user-not-found':       return 'No account found with this email.'
-    case 'auth/wrong-password':       return 'Incorrect password. Please try again.'
-    case 'auth/invalid-credential':   return 'Invalid email or password.'
-    case 'auth/too-many-requests':    return 'Too many attempts. Please wait a moment and try again.'
-    case 'auth/user-disabled':        return 'This account has been disabled.'
-    case 'auth/network-request-failed': return 'Network error. Check your connection.'
-    default:                          return 'Sign in failed. Please try again.'
-  }
-}
+import { signInWithEmailAndPassword } from 'firebase/auth'
+import { auth } from '@/lib/firebase'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { useToast } from '@/contexts/ToastContext'
+import { LogIn, Leaf, Eye, EyeOff } from 'lucide-react'
 
 export default function LoginPage() {
-  const { signIn } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPw, setShowPw] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const router = useRouter()
+  const { toast } = useToast()
 
-  async function handleSubmit(e: React.FormEvent) {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError('')
-
-    if (!email.trim()) return setError('Email is required.')
-    if (!password)      return setError('Password is required.')
-
     setLoading(true)
+    setError('')
     try {
-      await signIn(email.trim(), password)
-      // AppShell will redirect to /dashboard automatically
-    } catch (err: unknown) {
-      const code = (err as { code?: string }).code ?? ''
-      setError(getAuthError(code))
+      await signInWithEmailAndPassword(auth, email.trim(), password)
+      toast('Welcome back!')
+      router.push('/dashboard')
+    } catch (err: any) {
+      setError(err.message || 'Failed to login. Please check your credentials.')
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-950 via-green-900 to-green-800 flex items-center justify-center p-4">
-      <div className="w-full max-w-sm">
-        {/* Brand */}
-        <div className="flex flex-col items-center gap-3 mb-8">
-          <div className="w-16 h-16 rounded-2xl bg-orange-500 flex items-center justify-center shadow-xl shadow-orange-900/30">
-            <Leaf size={30} className="text-white" />
+    <div className="min-h-screen bg-[#fafafa] flex items-center justify-center p-6 font-sans">
+      <div className="w-full max-w-[420px] space-y-8 animate-in fade-in zoom-in duration-700">
+        {/* Branding */}
+        <div className="flex flex-col items-center text-center space-y-4">
+          <div className="w-20 h-20 bg-emerald-600 rounded-[28px] flex items-center justify-center shadow-2xl shadow-emerald-200 rotate-3 transition-transform hover:rotate-0 duration-500">
+            <Leaf size={36} className="text-white fill-white/10" />
           </div>
-          <div className="text-center">
-            <h1 className="text-2xl font-bold text-white tracking-tight">Health is Wealth TT</h1>
-            <p className="text-green-300 text-sm mt-0.5">Sales Tracker</p>
+          <div className="space-y-1">
+            <h1 className="text-3xl font-black text-gray-900 tracking-tight">Health is Wealth</h1>
+            <p className="text-[10px] font-black text-emerald-600 uppercase tracking-[0.2em]">Business Sales Tracker</p>
           </div>
         </div>
 
         {/* Card */}
-        <div className="bg-white rounded-2xl shadow-2xl shadow-black/30 p-8">
-          <h2 className="text-lg font-semibold text-gray-800 mb-6">Sign in to your account</h2>
+        <div className="bg-white p-10 rounded-[40px] border border-gray-100 shadow-[0_32px_64px_-12px_rgba(0,0,0,0.08)] space-y-8">
+          <div className="space-y-2 text-center">
+            <h2 className="text-xl font-black text-gray-900">Welcome Back</h2>
+            <p className="text-sm font-bold text-gray-400">Sign in to your dashboard</p>
+          </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-            {/* Email */}
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1.5">
-                Email address
-              </label>
+          <form onSubmit={handleLogin} className="space-y-6">
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Email Address</label>
               <input
-                id="email"
                 type="email"
-                autoComplete="email"
-                autoFocus
                 value={email}
-                onChange={(e) => { setEmail(e.target.value); setError('') }}
-                disabled={loading}
-                className="w-full border border-gray-300 rounded-lg px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition disabled:opacity-60 disabled:bg-gray-50"
-                placeholder="you@example.com"
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                className="w-full bg-gray-50 border-transparent rounded-2xl px-6 py-4 text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all shadow-sm placeholder:text-gray-300"
+                placeholder="name@business.com"
               />
             </div>
 
-            {/* Password */}
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1.5">
-                Password
-              </label>
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Password</label>
               <div className="relative">
                 <input
-                  id="password"
                   type={showPw ? 'text' : 'password'}
-                  autoComplete="current-password"
                   value={password}
-                  onChange={(e) => { setPassword(e.target.value); setError('') }}
-                  disabled={loading}
-                  className="w-full border border-gray-300 rounded-lg px-3.5 py-2.5 pr-10 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition disabled:opacity-60 disabled:bg-gray-50"
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="w-full bg-gray-50 border-transparent rounded-2xl px-6 py-4 text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all shadow-sm placeholder:text-gray-300"
                   placeholder="••••••••"
                 />
                 <button
                   type="button"
-                  onClick={() => setShowPw((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
-                  tabIndex={-1}
-                  aria-label={showPw ? 'Hide password' : 'Show password'}
+                  onClick={() => setShowPw(!showPw)}
+                  className="absolute right-6 top-1/2 -translate-y-1/2 text-gray-400 hover:text-emerald-600 transition-colors"
                 >
-                  {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
+                  {showPw ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
             </div>
 
-            {/* Error */}
             {error && (
-              <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg px-3.5 py-2.5">
-                <span className="text-red-600 text-xs mt-0.5">⚠</span>
-                <p className="text-red-700 text-sm leading-snug">{error}</p>
+              <div className="bg-red-50 border border-red-100 text-red-600 p-4 rounded-2xl text-[11px] font-bold leading-relaxed animate-in slide-in-from-top-2">
+                {error}
               </div>
             )}
 
-            {/* Submit */}
             <button
               type="submit"
               disabled={loading}
-              className="w-full mt-2 flex items-center justify-center gap-2 bg-green-700 hover:bg-green-800 text-white font-semibold text-sm py-2.5 rounded-lg transition-colors disabled:opacity-70 disabled:cursor-not-allowed shadow-sm"
+              className="w-full bg-gray-900 text-white rounded-2xl py-5 text-xs font-black uppercase tracking-[0.2em] hover:bg-black transition-all shadow-xl shadow-gray-200 hover:shadow-gray-300 disabled:opacity-50 active:scale-[0.98] flex items-center justify-center gap-2"
             >
               {loading ? (
-                <>
-                  <Spinner size={16} />
-                  Signing in…
-                </>
+                'Authenticating...'
               ) : (
-                'Sign In'
+                <>
+                  <LogIn size={16} />
+                  Sign In
+                </>
               )}
             </button>
           </form>
+
+          <div className="pt-4 text-center border-t border-gray-50">
+            <p className="text-sm font-bold text-gray-400">
+              New business?{' '}
+              <Link href="/signup" className="text-emerald-600 hover:text-emerald-700 underline decoration-2 underline-offset-4">
+                Register here
+              </Link>
+            </p>
+          </div>
         </div>
 
-        <p className="text-center text-green-400 text-xs mt-6 opacity-60">
-          Health is Wealth TT © {new Date().getFullYear()}
+        {/* Footer */}
+        <p className="text-center text-[10px] font-bold text-gray-300 uppercase tracking-widest">
+          © {new Date().getFullYear()} Health is Wealth TT
         </p>
       </div>
     </div>

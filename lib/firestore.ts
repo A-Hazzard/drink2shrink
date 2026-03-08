@@ -8,10 +8,13 @@ import {
   serverTimestamp,
   query,
   orderBy,
+  where,
+  setDoc,
+  getDoc,
   type Unsubscribe,
 } from 'firebase/firestore'
 import { db } from './firebase'
-import type { Product, Call, Order, CallOutcome } from '@/types'
+import type { Product, Call, Order, CallOutcome, UserProfile } from '@/types'
 
 /**
  * Helper to remove undefined values before sending to Firestore
@@ -28,13 +31,21 @@ function cleanData<T extends object>(data: T): T {
 }
 
 // ── Products ──────────────────────────────────────────────────────────────────
-
-export function subscribeProducts(cb: (products: Product[]) => void, showArchived = false): Unsubscribe {
-  const q = query(collection(db, 'products'), orderBy('createdAt', 'desc'))
+export function subscribeProducts(ownerEmail: string, cb: (products: Product[]) => void, showArchived = false): Unsubscribe {
+  const q = query(
+    collection(db, 'products'),
+    where('ownerEmail', '==', ownerEmail)
+  )
   return onSnapshot(q,
     (snap) => {
       const all = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Product))
-      cb(all.filter(p => !!p.archivedAt === showArchived))
+      // Sort manually to avoid composite index crash if missing
+      const sorted = all.sort((a, b) => {
+        const t1 = (a.createdAt as any)?.seconds || 0
+        const t2 = (b.createdAt as any)?.seconds || 0
+        return t2 - t1
+      })
+      cb(sorted.filter(p => !!p.archivedAt === showArchived))
     },
     () => cb([])
   )
@@ -61,13 +72,21 @@ export async function restoreProduct(id: string) {
 }
 
 // ── Calls ─────────────────────────────────────────────────────────────────────
-
-export function subscribeCalls(cb: (calls: Call[]) => void, showArchived = false): Unsubscribe {
-  const q = query(collection(db, 'calls'), orderBy('createdAt', 'desc'))
+export function subscribeCalls(ownerEmail: string, cb: (calls: Call[]) => void, showArchived = false): Unsubscribe {
+  const q = query(
+    collection(db, 'calls'),
+    where('ownerEmail', '==', ownerEmail)
+  )
   return onSnapshot(q,
     (snap) => {
       const all = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Call))
-      cb(all.filter(c => !!c.archivedAt === showArchived))
+      // Sort manually
+      const sorted = all.sort((a, b) => {
+        const t1 = (a.createdAt as any)?.seconds || 0
+        const t2 = (b.createdAt as any)?.seconds || 0
+        return t2 - t1
+      })
+      cb(sorted.filter(c => !!c.archivedAt === showArchived))
     },
     () => cb([])
   )
@@ -94,13 +113,21 @@ export async function deleteCall(id: string) {
 }
 
 // ── Orders ────────────────────────────────────────────────────────────────────
-
-export function subscribeOrders(cb: (orders: Order[]) => void, showArchived = false): Unsubscribe {
-  const q = query(collection(db, 'orders'), orderBy('createdAt', 'desc'))
+export function subscribeOrders(ownerEmail: string, cb: (orders: Order[]) => void, showArchived = false): Unsubscribe {
+  const q = query(
+    collection(db, 'orders'),
+    where('ownerEmail', '==', ownerEmail)
+  )
   return onSnapshot(q,
     (snap) => {
       const all = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Order))
-      cb(all.filter(o => !!o.archivedAt === showArchived))
+      // Sort manually
+      const sorted = all.sort((a, b) => {
+        const t1 = (a.createdAt as any)?.seconds || 0
+        const t2 = (b.createdAt as any)?.seconds || 0
+        return t2 - t1
+      })
+      cb(sorted.filter(o => !!o.archivedAt === showArchived))
     },
     () => cb([])
   )
@@ -136,4 +163,29 @@ export async function restoreOrder(id: string) {
 
 export async function deleteOrder(id: string) {
   return deleteDoc(doc(db, 'orders', id))
+}
+
+// ── User Profiles ─────────────────────────────────────────────────────────────
+
+export function subscribeUserProfile(email: string, cb: (profile: UserProfile | null) => void): Unsubscribe {
+  const q = query(collection(db, 'userProfiles'), where('email', '==', email))
+  return onSnapshot(q, (snap) => {
+    if (snap.empty) cb(null)
+    else cb({ id: snap.docs[0].id, ...snap.docs[0].data() } as UserProfile)
+  }, () => cb(null))
+}
+
+export async function getUserProfile(email: string): Promise<UserProfile | null> {
+  const q = query(collection(db, 'userProfiles'), where('email', '==', email))
+  const snap = await getDoc(doc(db, 'userProfiles', email)) // Using email as ID for profiles
+  if (snap.exists()) return { id: snap.id, ...snap.data() } as UserProfile
+  return null
+}
+
+export async function createOrUpdateProfile(email: string, data: Partial<UserProfile>) {
+  return setDoc(doc(db, 'userProfiles', email), cleanData({
+    ...data,
+    email,
+    createdAt: data.createdAt || serverTimestamp(),
+  }), { merge: true })
 }

@@ -1,14 +1,19 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { Plus, Pencil, Phone, Archive, RotateCcw, Trash2, RefreshCcw } from 'lucide-react'
-import { subscribeCalls, archiveCall, restoreCall, deleteCall, subscribeOrders, updateCall } from '@/lib/firestore'
-import type { Call, Order } from '@/types'
+import { useEffect, useState, useMemo } from 'react'
+import { Plus, Pencil, Phone, Archive, RotateCcw, Trash2, RefreshCcw, Search, ArrowUpDown, Calendar, Filter, CalendarDays } from 'lucide-react'
+import { isWithinInterval, startOfDay, endOfDay } from 'date-fns'
+import { DateRangePicker } from '@/components/ui/date-range-picker'
+import { DateRange } from 'react-day-picker'
+import { subscribeCalls, archiveCall, restoreCall, deleteCall, subscribeOrders, subscribeProducts, updateCall } from '@/lib/firestore'
+import type { Call, Order, Product, CallOutcome } from '@/types'
 import { DELIVERY_AREA_LABELS } from '@/types'
 import Modal from '@/components/Modal'
 import CallForm from '@/components/calls/CallForm'
 import Badge from '@/components/Badge'
 import TableSkeleton from '@/components/skeletons/TableSkeleton'
+import { useAuth } from '@/contexts/AuthContext'
+import { useRouter } from 'next/navigation'
 
 const GOAL_LABELS: Record<string, string> = {
   lose_weight: 'Lose Weight',
@@ -21,12 +26,26 @@ function fmt(ts?: { seconds: number }) {
   return new Date(ts.seconds * 1000).toLocaleDateString('en-TT', {
     day: 'numeric',
     month: 'short',
+    year: 'numeric'
   })
 }
 
+type SortBy = 'newest' | 'oldest' | 'name'
+
+const STATUS_LABELS: Record<CallOutcome, string> = {
+  pending: 'Pending',
+  delivered: 'Delivered',
+  delivering: 'Delivering',
+  rejected: 'Rejected',
+  interested_future: 'Future Date'
+}
+
 export default function CallsPage() {
+  const { user, loading: authLoading } = useAuth()
+  const router = useRouter()
   const [calls, setCalls] = useState<Call[]>([])
   const [orders, setOrders] = useState<Order[]>([])
+  const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<Call | undefined>()
@@ -34,26 +53,37 @@ export default function CallsPage() {
   const [showArchived, setShowArchived] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
 
+  // Search & Filter state
+  const [searchQuery, setSearchQuery] = useState('')
+  const [sortBy, setSortBy] = useState<SortBy>('newest')
+  const [dateFilter, setDateFilter] = useState<DateRange | undefined>()
+  const [statusFilter, setStatusFilter] = useState<CallOutcome | 'all'>('all')
+
   useEffect(() => {
+    if (!user?.email) return
     setLoading(true)
-    const u1 = subscribeCalls((data) => {
+    const u1 = subscribeCalls(user.email, (data) => {
       setCalls(data)
       setLoading(false)
     }, showArchived)
 
-    const u2 = subscribeOrders((data) => {
+    const u2 = subscribeOrders(user.email, (data) => {
       setOrders(data)
     }, false)
 
-    return () => { u1(); u2() }
-  }, [showArchived, refreshKey])
+    const u3 = subscribeProducts(user.email, (data) => {
+      setProducts(data)
+    }, false)
+
+    return () => { u1(); u2(); u3() }
+  }, [showArchived, refreshKey, user])
 
   function handleRefresh() {
     setLoading(true)
     setTimeout(() => setRefreshKey(prev => prev + 1), 500)
   }
 
-  // Background Sync: Ensure 'sale' outcomes match order status
+  // Background Sync
   useEffect(() => {
     if (loading || calls.length === 0 || orders.length === 0) return
 
@@ -61,9 +91,9 @@ export default function CallsPage() {
       for (const call of calls) {
         const linkedOrder = orders.find(o => o.id === call.orderId || o.callId === call.id)
         if (linkedOrder) {
-          const correctOutcome = linkedOrder.status === 'delivered' ? 'sale' : 'out_for_delivery'
-          if (call.outcome !== correctOutcome && (call.outcome === 'sale' || call.outcome === 'pending')) {
-            await updateCall(call.id, { outcome: correctOutcome })
+          // If a linked order exists, sync the call status to match the order status
+          if (call.outcome !== linkedOrder.status) {
+            await updateCall(call.id, { outcome: linkedOrder.status as CallOutcome })
           }
         }
       }
@@ -71,6 +101,52 @@ export default function CallsPage() {
 
     syncOutcomes()
   }, [calls, orders, loading])
+
+  // Process calls: Filter -> Sort
+  const processedCalls = useMemo(() => {
+    let result = [...calls]
+
+    // 1. Search (Name or Phone)
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase()
+      result = result.filter(c =>
+        c.name.toLowerCase().includes(q) ||
+        c.phone.includes(q)
+      )
+    }
+
+    // 2. Date Filter (Interval)
+    if (dateFilter?.from) {
+      const start = startOfDay(dateFilter.from)
+      const end = dateFilter.to ? endOfDay(dateFilter.to) : endOfDay(dateFilter.from)
+      result = result.filter(c => {
+        if (!c.createdAt) return false
+        const d = new Date(c.createdAt.seconds * 1000)
+        return isWithinInterval(d, { start, end })
+      })
+    }
+
+    // 3. Status Filter
+    if (statusFilter !== 'all') {
+      result = result.filter(c => c.outcome === statusFilter)
+    }
+
+    // 4. Sort
+    result.sort((a, b) => {
+      if (sortBy === 'newest') {
+        return (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0)
+      }
+      if (sortBy === 'oldest') {
+        return (a.createdAt?.seconds ?? 0) - (b.createdAt?.seconds ?? 0)
+      }
+      if (sortBy === 'name') {
+        return a.name.localeCompare(b.name)
+      }
+      return 0
+    })
+
+    return result
+  }, [calls, searchQuery, sortBy, dateFilter, statusFilter])
 
   function openAdd() {
     setEditing(undefined)
@@ -101,20 +177,20 @@ export default function CallsPage() {
     await deleteCall(id)
   }
 
-  const totalCalls = calls.length
-  const sales = calls.filter((c) => c.outcome === 'sale').length
-  const outForDelivery = calls.filter((c) => c.outcome === 'out_for_delivery').length
+  const sales = calls.filter((c) => c.outcome === 'delivered').length
+  const outForDelivery = calls.filter((c) => c.outcome === 'delivering').length
   const pending = calls.filter((c) => c.outcome === 'pending').length
 
-  if (loading) return <TableSkeleton cols={7} rows={5} />
+  if (authLoading || (loading && calls.length === 0)) return <TableSkeleton cols={7} rows={5} />
+  if (!user) return null
 
   return (
-    <div className="p-4 sm:p-6 max-w-6xl mx-auto">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+    <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-black text-gray-900 tracking-tight">Calls</h1>
           <p className="text-sm font-medium text-gray-500 mt-1">
-            <span className="text-green-700 font-bold">{sales}</span> delivered · <span className="text-purple-600 font-bold">{outForDelivery}</span> delivering · <span className="text-orange-500 font-bold">{pending}</span> pending
+            <span className="text-green-700 font-bold">{sales}</span> delivered · <span className="text-orange-600 font-bold">{outForDelivery}</span> delivering · <span className="text-orange-500 font-bold">{pending}</span> pending
           </p>
         </div>
         <div className="flex items-center gap-2 self-end sm:self-auto">
@@ -137,7 +213,7 @@ export default function CallsPage() {
           </button>
           <button
             onClick={openAdd}
-            className="flex items-center gap-2 px-6 py-2.5 bg-green-700 text-white text-sm font-black rounded-xl hover:bg-green-800 transition-all shadow-lg shadow-green-100 active:scale-95"
+            className="flex items-center gap-2 px-6 py-2.5 bg-green-700 text-white text-sm font-black rounded-xl hover:bg-green-800 transition-all shadow-lg shadow-green-100 active:scale-95 uppercase tracking-widest"
           >
             <Plus size={18} strokeWidth={3} />
             LOG CALL
@@ -145,16 +221,83 @@ export default function CallsPage() {
         </div>
       </div>
 
-      {calls.length === 0 ? (
+      {/* Search & Filter Bar */}
+      <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col md:flex-row gap-3">
+        <div className="flex-1 relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+          <input
+            type="text"
+            placeholder="Search by name or phone..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-500 transition-all font-medium"
+          />
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <div className="relative flex-1 md:w-36">
+            <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as CallOutcome | 'all')}
+              className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-500 transition-all appearance-none font-bold text-gray-600"
+            >
+              <option value="all">All Status</option>
+              <option value="pending">Pending</option>
+              <option value="delivered">Delivered</option>
+              <option value="delivering">Delivering</option>
+              <option value="rejected">Rejected</option>
+              <option value="interested_future">Future Date</option>
+            </select>
+          </div>
+
+          <div className="relative flex-1 md:w-36">
+            <ArrowUpDown className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as SortBy)}
+              className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-500 transition-all appearance-none font-bold text-gray-600"
+            >
+              <option value="newest">Newest</option>
+              <option value="oldest">Oldest</option>
+              <option value="name">Name A-Z</option>
+            </select>
+          </div>
+
+          <div className="flex-1 md:w-56">
+            <DateRangePicker
+              date={dateFilter}
+              setDate={setDateFilter}
+              placeholder="Select Date Interval"
+              className="w-full"
+            />
+          </div>
+
+          {(searchQuery || sortBy !== 'newest' || dateFilter || statusFilter !== 'all') && (
+            <button
+              onClick={() => { setSearchQuery(''); setSortBy('newest'); setDateFilter(undefined); setStatusFilter('all') }}
+              className="px-4 py-2 text-xs font-black text-red-500 hover:bg-red-50 rounded-xl transition-all uppercase tracking-tighter"
+            >
+              Reset
+            </button>
+          )}
+        </div>
+      </div>
+
+      {processedCalls.length === 0 ? (
         <div className="bg-white rounded-3xl shadow-sm border border-gray-100 py-20 flex flex-col items-center gap-4 text-center px-6">
           <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center">
-            <Phone size={40} className="text-gray-300" />
+            {searchQuery || dateFilter || statusFilter !== 'all' ? <Search size={40} className="text-gray-300" /> : <Phone size={40} className="text-gray-300" />}
           </div>
           <div>
-            <p className="text-gray-900 font-black text-lg">{showArchived ? 'Archive is empty' : 'No calls logged yet'}</p>
-            <p className="text-gray-500 text-sm mt-1">Ready to start your wellness outreach?</p>
+            <p className="text-gray-900 font-black text-lg">
+              {searchQuery || dateFilter || statusFilter !== 'all' ? 'No results found' : showArchived ? 'Archive is empty' : 'No calls logged yet'}
+            </p>
+            <p className="text-gray-500 text-sm mt-1">
+              {searchQuery || dateFilter || statusFilter !== 'all' ? 'Try adjusting your search criteria' : 'Ready to start your wellness outreach?'}
+            </p>
           </div>
-          {!showArchived && (
+          {!showArchived && !searchQuery && !dateFilter && statusFilter === 'all' && (
             <button
               onClick={openAdd}
               className="mt-2 px-8 py-3 bg-green-50 text-green-700 font-black rounded-xl hover:bg-green-100 transition-colors uppercase tracking-wider text-xs"
@@ -173,14 +316,13 @@ export default function CallsPage() {
                   <tr className="bg-gray-50/50 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">
                     <th className="px-6 py-4">Client</th>
                     <th className="px-6 py-4">Contact</th>
-                    <th className="px-6 py-4">Goal</th>
+                    <th className="px-6 py-4">Product / Package</th>
                     <th className="px-6 py-4">Status</th>
-                    <th className="px-6 py-4">Order</th>
                     <th className="px-6 py-4 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {calls.map((call) => (
+                  {processedCalls.map((call) => (
                     <tr key={call.id} className="group hover:bg-green-50/30 transition-colors">
                       <td className="px-6 py-4">
                         <div className="font-bold text-gray-900 group-hover:text-green-800 transition-colors">{call.name}</div>
@@ -188,40 +330,28 @@ export default function CallsPage() {
                       </td>
                       <td className="px-6 py-4 text-gray-600 font-medium">{call.phone}</td>
                       <td className="px-6 py-4">
-                        <span className="text-xs font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded-md uppercase tracking-tighter">
-                          {call.goal ? GOAL_LABELS[call.goal] : '—'}
-                        </span>
+                        <div className="text-xs font-black text-gray-800 uppercase tracking-tighter">
+                          {(() => {
+                            const order = orders.find(o => o.callId === call.id)
+                            return order?.productName || '—'
+                          })()}
+                        </div>
+                        <div className="text-[10px] text-gray-500 font-medium mt-0.5">
+                          {(() => {
+                            const order = orders.find(o => o.callId === call.id)
+                            return order?.packageTitle || 'Potential Interest'
+                          })()}
+                        </div>
                       </td>
                       <td className="px-6 py-4">
                         <Badge
-                          variant={
-                            call.outcome === 'sale'
-                              ? 'sale'
-                              : call.outcome === 'not_a_sale'
-                                ? 'not_a_sale'
-                                : call.outcome === 'out_for_delivery'
-                                  ? 'out_for_delivery'
-                                  : 'pending'
-                          }
-                          label={
-                            call.outcome === 'sale'
-                              ? 'Delivered'
-                              : call.outcome === 'not_a_sale'
-                                ? 'No Sale'
-                                : call.outcome === 'out_for_delivery'
-                                  ? 'Delivering'
-                                  : 'Pending'
-                          }
+                          variant={call.outcome}
+                          label={STATUS_LABELS[call.outcome]}
                         />
-                      </td>
-                      <td className="px-6 py-4">
-                        {call.orderId ? (
-                          <div className="flex items-center gap-1.5 text-green-600">
-                            <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-                            <span className="text-xs font-black uppercase tracking-tighter">Ordered</span>
+                        {call.outcome === 'interested_future' && call.followUpDate && (
+                          <div className="text-[9px] font-bold text-blue-600 mt-1 uppercase tracking-tighter">
+                            Req: {new Date(call.followUpDate).toLocaleDateString()}
                           </div>
-                        ) : (
-                          <span className="text-gray-300 text-xs">—</span>
                         )}
                       </td>
                       <td className="px-6 py-4 text-right">
@@ -265,10 +395,10 @@ export default function CallsPage() {
 
           {/* Mobile Card View */}
           <div className="md:hidden space-y-4">
-            {calls.map((call) => (
+            {processedCalls.map((call) => (
               <div
                 key={call.id}
-                className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm space-y-4 active:scale-[0.98] transition-all"
+                className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4 active:scale-[0.98] transition-all"
                 onClick={() => setViewCall(call)}
               >
                 <div className="flex items-start justify-between">
@@ -276,53 +406,43 @@ export default function CallsPage() {
                     <h3 className="font-black text-gray-900 text-lg leading-tight truncate">{call.name}</h3>
                     <p className="text-sm font-bold text-gray-400 mt-1 uppercase tracking-tight">{call.phone}</p>
                   </div>
-                  <div className="shrink-0">
+                  <div className="shrink-0 flex flex-col items-end gap-1">
                     <Badge
-                      variant={
-                        call.outcome === 'sale'
-                          ? 'sale'
-                          : call.outcome === 'not_a_sale'
-                            ? 'not_a_sale'
-                            : call.outcome === 'out_for_delivery'
-                              ? 'out_for_delivery'
-                              : 'pending'
-                      }
-                      label={
-                        call.outcome === 'sale'
-                          ? 'Delivered'
-                          : call.outcome === 'not_a_sale'
-                            ? 'No Sale'
-                            : call.outcome === 'out_for_delivery'
-                              ? 'Delivering'
-                              : 'Pending'
-                      }
+                      variant={call.outcome}
+                      label={STATUS_LABELS[call.outcome]}
                     />
+                    {call.outcome === 'interested_future' && call.followUpDate && (
+                      <span className="text-[9px] font-black text-blue-600 uppercase tracking-tighter">
+                        {new Date(call.followUpDate).toLocaleDateString()}
+                      </span>
+                    )}
                   </div>
                 </div>
 
                 <div className="flex items-center gap-3 border-t border-gray-50 pt-4">
                   <div className="flex-1">
-                    <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Goal</p>
-                    <p className="text-xs font-bold text-gray-600 mt-0.5 tracking-tight capitalize truncate">
-                      {call.goal ? GOAL_LABELS[call.goal] : 'No goal set'}
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Product</p>
+                    <p className="text-xs font-black text-gray-800 mt-0.5 tracking-tight uppercase truncate">
+                      {(() => {
+                        const order = orders.find(o => o.callId === call.id)
+                        return order?.productName || 'TBD'
+                      })()}
                     </p>
                   </div>
                   <div className="flex-1">
-                    <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Logged</p>
-                    <p className="text-xs font-bold text-gray-400 mt-0.5 tracking-tight">
-                      {fmt(call.createdAt)}
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Package</p>
+                    <p className="text-xs font-bold text-gray-500 mt-0.5 tracking-tight truncate">
+                      {(() => {
+                        const order = orders.find(o => o.callId === call.id)
+                        return order?.packageTitle || 'NONE'
+                      })()}
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between gap-2 pt-2">
+                <div className="flex items-center justify-between gap-2 border-t border-gray-50 pt-4">
                   <div className="flex items-center gap-1.5 min-w-0">
-                    {call.orderId && (
-                      <div className="flex items-center gap-1 bg-green-50 px-2 py-1 rounded-lg border border-green-100">
-                        <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-                        <span className="text-[9px] font-black text-green-700 uppercase tracking-tighter">Ordered</span>
-                      </div>
-                    )}
+                    <span className="text-[10px] font-bold text-gray-300 uppercase tracking-widest">{fmt(call.createdAt)}</span>
                   </div>
                   <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                     <button
@@ -357,18 +477,18 @@ export default function CallsPage() {
       {/* Log / Edit call modal */}
       {showForm && (
         <Modal
-          title={editing ? `Edit Call — ${editing.name}` : 'Log New Call'}
+          title={editing ? `Edit Log — ${editing.name}` : 'Log New Call'}
           onClose={closeForm}
           wide
         >
-          <CallForm call={editing} onDone={closeForm} />
+          <CallForm call={editing} products={products} onDone={closeForm} />
         </Modal>
       )}
 
       {/* View call details modal */}
       {viewCall && (
         <Modal
-          title={`Call Details — ${viewCall.name}`}
+          title={`Detailed History — ${viewCall.name}`}
           onClose={() => setViewCall(undefined)}
           wide
         >
@@ -382,7 +502,7 @@ export default function CallsPage() {
 function CallDetail({ call, onEdit }: { call: Call; onEdit: () => void }) {
   const rows: [string, string | undefined | boolean][] = [
     ['Phone', call.phone],
-    ['Goal', call.goal ? { lose_weight: 'Lose Weight', detox: 'Detox', both: 'Both' }[call.goal] : undefined],
+    ['Goal', call.goal ? GOAL_LABELS[call.goal] : undefined],
     ['Current Weight', call.currentWeight],
     ['Goal Weight', call.goalWeight],
     ['Medical / Medications', call.medicalConditions],
@@ -393,6 +513,7 @@ function CallDetail({ call, onEdit }: { call: Call; onEdit: () => void }) {
     ['Routine Convenience', call.routineConvenience],
     ['Timeline', call.timeline],
     ['Interested Package', call.interestedPackage],
+    ['Requested Future Date', call.followUpDate ? new Date(call.followUpDate).toLocaleDateString() : undefined],
     ['Delivery Area', call.area ? DELIVERY_AREA_LABELS[call.area] : undefined],
     ['Address', call.address],
     ['Notes', call.notes],
@@ -402,26 +523,10 @@ function CallDetail({ call, onEdit }: { call: Call; onEdit: () => void }) {
     <div className="space-y-6">
       <div className="flex items-center gap-2">
         <Badge
-          variant={
-            call.outcome === 'sale'
-              ? 'sale'
-              : call.outcome === 'not_a_sale'
-                ? 'not_a_sale'
-                : call.outcome === 'out_for_delivery'
-                  ? 'out_for_delivery'
-                  : 'pending'
-          }
-          label={
-            call.outcome === 'sale'
-              ? 'Delivered'
-              : call.outcome === 'not_a_sale'
-                ? 'No Sale'
-                : call.outcome === 'out_for_delivery'
-                  ? 'Delivering'
-                  : 'Pending'
-          }
+          variant={call.outcome}
+          label={STATUS_LABELS[call.outcome]}
         />
-        {call.orderId && <Badge variant="neutral" label="Order placed" />}
+        {call.orderId && <Badge variant="neutral" label="Order Connected" />}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -429,7 +534,7 @@ function CallDetail({ call, onEdit }: { call: Call; onEdit: () => void }) {
           value ? (
             <div key={label} className="border-b border-gray-50 pb-2">
               <dt className="text-[10px] text-gray-400 font-black uppercase tracking-widest">{label}</dt>
-              <dd className="text-sm text-gray-800 mt-1 font-medium">{String(value)}</dd>
+              <dd className="text-sm text-gray-800 mt-1 font-bold">{String(value)}</dd>
             </div>
           ) : null
         )}
@@ -438,10 +543,10 @@ function CallDetail({ call, onEdit }: { call: Call; onEdit: () => void }) {
       <div className="pt-4 flex justify-end">
         <button
           onClick={onEdit}
-          className="flex items-center gap-2 px-6 py-3 text-sm font-black text-white bg-green-700 rounded-xl hover:bg-green-800 transition-all shadow-lg shadow-green-100"
+          className="flex items-center gap-2 px-8 py-4 text-xs font-black text-white bg-green-700 rounded-2xl hover:bg-green-800 transition-all shadow-lg shadow-green-900/10 uppercase tracking-widest active:scale-95"
         >
           <Pencil size={18} />
-          EDIT LOG
+          MODIFY RECORD
         </button>
       </div>
     </div>

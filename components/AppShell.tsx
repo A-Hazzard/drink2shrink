@@ -24,23 +24,23 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
   const pathname = usePathname()
   const router = useRouter()
-  const isLoginPage = pathname === '/login'
+  const isAuthPage = pathname === '/login' || pathname === '/signup'
 
   useEffect(() => {
     if (loading) return
-    if (!user && !isLoginPage) router.replace('/login')
-    if (user && isLoginPage) router.replace('/dashboard')
-  }, [user, loading, isLoginPage, router])
+    if (!user && !isAuthPage) router.replace('/login')
+    if (user && isAuthPage) router.replace('/dashboard')
+  }, [user, loading, isAuthPage, router])
 
   if (loading) return <FullPageLoader />
 
-  // Login page — no sidebar, no shell
-  if (isLoginPage) {
+  // Auth pages (Login/Signup) — no sidebar, no shell
+  if (isAuthPage) {
     return (
-      <>
+      <div className="min-h-screen bg-gray-50 flex flex-col">
         {children}
         <ToastContainer />
-      </>
+      </div>
     )
   }
 
@@ -49,12 +49,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   // Authenticated app shell
   return (
-    <>
+    <div className="flex bg-[#fafafa] min-h-screen">
       <Sidebar />
-      <main className="lg:pl-64 pt-16 lg:pt-0 min-h-screen animate-fade-in bg-[#fdfdfd]">
-        {children}
+      <main className="flex-1 w-full pt-16 lg:pt-0 min-h-screen animate-in fade-in duration-500 overflow-hidden">
+        <div className="h-full">
+          {children}
+        </div>
       </main>
       <ToastContainer />
-    </>
+    </div>
   )
 }

@@ -1,11 +1,14 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import type { Call, Product, Order, DeliveryArea } from '@/types'
+import { format, parseISO, isValid } from 'date-fns'
+import type { Call, Product, Order, DeliveryArea, OrderStatus, CallOutcome } from '@/types'
 import { DELIVERY_FEES, DELIVERY_AREA_LABELS, DELIVERY_AREA_GROUPS } from '@/types'
 import { addOrder, updateOrder, updateCall } from '@/lib/firestore'
 import { useToast } from '@/contexts/ToastContext'
-import Spinner from '@/components/Spinner'
+import { DatePicker } from '@/components/ui/date-picker'
+import { useAuth } from '@/contexts/AuthContext'
+
 
 interface Props {
   calls: Call[]
@@ -14,7 +17,8 @@ interface Props {
   onDone: () => void
 }
 
-export default function OrderForm({ calls, products, order, onDone }: Props) {
+export default function OrderForm({ order, calls, products, onDone }: Props) {
+  const { user } = useAuth()
   const editing = !!order
   const { toast } = useToast()
 
@@ -23,7 +27,8 @@ export default function OrderForm({ calls, products, order, onDone }: Props) {
   const [packageId, setPackageId] = useState(order?.packageId ?? '')
   const [area, setArea] = useState<DeliveryArea | ''>(order?.area ?? '')
   const [deliveryDate, setDeliveryDate] = useState(order?.deliveryDate ?? '')
-  const [status, setStatus] = useState<Order['status']>(order?.status ?? 'pending')
+  const [followUpDate, setFollowUpDate] = useState(order?.followUpDate ?? '')
+  const [status, setStatus] = useState<OrderStatus>(order?.status ?? 'pending')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -53,6 +58,7 @@ export default function OrderForm({ calls, products, order, onDone }: Props) {
     if (!productId) return setError('Please select a product.')
     if (!packageId) return setError('Please select a package.')
     if (!area) return setError('Please select a delivery area.')
+    if (status === 'interested_future' && !followUpDate) return setError('Please select a follow-up date.')
     if (!selectedCall || !selectedPackage || !selectedProduct) return
 
     setSaving(true)
@@ -70,16 +76,16 @@ export default function OrderForm({ calls, products, order, onDone }: Props) {
         deliveryFee,
         totalPrice,
         deliveryDate: deliveryDate || undefined,
+        followUpDate: followUpDate || undefined,
         status,
+        ownerEmail: user?.email || '',
       }
 
       if (editing) {
         await updateOrder(order.id, payload)
         // Sync call outcome
         if (order.callId) {
-          await updateCall(order.callId, {
-            outcome: status === 'delivered' ? 'sale' : 'out_for_delivery'
-          })
+          await updateCall(order.callId, { outcome: status as CallOutcome })
         }
         toast('Order updated!')
       } else {
@@ -102,22 +108,23 @@ export default function OrderForm({ calls, products, order, onDone }: Props) {
   )
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
+    <form onSubmit={handleSubmit} className="space-y-6 max-h-[80vh] overflow-y-auto pr-2 custom-scrollbar p-1">
 
       {/* Client */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Client *</label>
+      <section className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm">
+        <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Client Selection *</label>
         {editing ? (
-          <p className="text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
-            {selectedCall?.name} — {selectedCall?.phone}
-          </p>
+          <div className="bg-gray-50 border border-gray-100 rounded-2xl px-5 py-3">
+            <p className="text-sm font-black text-gray-900">{selectedCall?.name}</p>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">{selectedCall?.phone}</p>
+          </div>
         ) : (
           <select
             value={callId}
             onChange={(e) => handleCallChange(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
+            className="w-full bg-gray-50 border-transparent rounded-2xl px-5 py-3 text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all appearance-none"
           >
-            <option value="">— Select a client —</option>
+            <option value="">— Choose a Logged Call —</option>
             {eligibleCalls.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name} ({c.phone})
@@ -125,154 +132,167 @@ export default function OrderForm({ calls, products, order, onDone }: Props) {
             ))}
           </select>
         )}
-      </div>
+      </section>
 
-      {/* Product */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Product *</label>
-        <select
-          value={productId}
-          onChange={(e) => handleProductChange(e.target.value)}
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
-        >
-          <option value="">— Select a product —</option>
-          {products.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* Package */}
-      {selectedProduct && (
+      {/* Product & Package */}
+      <section className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Package *</label>
-          <div className="grid grid-cols-1 gap-2">
-            {selectedProduct.packages.map((pkg) => (
-              <label
-                key={pkg.id}
-                className={`flex items-center justify-between px-4 py-3 border rounded-lg cursor-pointer transition-colors ${packageId === pkg.id
-                  ? 'border-green-600 bg-green-50'
-                  : 'border-gray-200 hover:border-gray-300'
+          <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Product *</label>
+          <select
+            value={productId}
+            onChange={(e) => handleProductChange(e.target.value)}
+            className="w-full bg-gray-50 border-transparent rounded-2xl px-5 py-3 text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all"
+          >
+            <option value="">— Select Product —</option>
+            {products.map((p) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+        </div>
+
+        {selectedProduct && (
+          <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Package *</label>
+            <div className="grid grid-cols-1 gap-2">
+              {selectedProduct.packages.map((pkg) => (
+                <label
+                  key={pkg.id}
+                  className={`flex items-center justify-between px-5 py-3 border-2 rounded-2xl cursor-pointer transition-all active:scale-[0.99] ${packageId === pkg.id
+                    ? 'border-orange-500 bg-orange-50 shadow-sm'
+                    : 'border-gray-50 hover:border-gray-100 bg-gray-50/50'
+                    }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="radio"
+                      name="package"
+                      checked={packageId === pkg.id}
+                      onChange={() => setPackageId(pkg.id)}
+                      className="accent-orange-600 w-4 h-4"
+                    />
+                    <div>
+                      <p className={`text-xs font-black uppercase tracking-tight ${packageId === pkg.id ? 'text-orange-900' : 'text-gray-700'}`}>{pkg.title}</p>
+                      <p className="text-[10px] font-bold text-gray-400">{pkg.quantity} Sachets</p>
+                    </div>
+                  </div>
+                  <span className={`text-sm font-black ${packageId === pkg.id ? 'text-orange-700' : 'text-gray-900'}`}>${pkg.price}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* Delivery Details */}
+      <section className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Delivery Area *</label>
+            <select
+              value={area}
+              onChange={(e) => setArea(e.target.value as DeliveryArea)}
+              className="w-full bg-gray-50 border-transparent rounded-2xl px-5 py-3 text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all"
+            >
+              <option value="">— Select Area —</option>
+              {Object.entries(DELIVERY_AREA_GROUPS).map(([group, areas]) => (
+                <optgroup key={group} label={group} className="text-[10px] uppercase font-black py-2 bg-white">
+                  {areas.map((a) => (
+                    <option key={a} value={a}>{DELIVERY_AREA_LABELS[a]}</option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Delivery Date</label>
+            <DatePicker
+              date={deliveryDate ? parseISO(deliveryDate) : undefined}
+              setDate={(d) => setDeliveryDate(d && isValid(d) ? format(d, 'yyyy-MM-dd') : '')}
+              placeholder="Delivery date"
+              className="bg-gray-50 border-transparent h-10 px-4 py-2"
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* Status Selection */}
+      <section className="bg-gray-50 p-6 rounded-[2.5rem] border border-gray-100 shadow-sm space-y-5">
+        <div>
+          <label className="block text-[10px] font-black text-gray-400 mb-3 uppercase tracking-widest ml-1">Current Order Status</label>
+          <div className="flex flex-wrap gap-2.5">
+            {(['pending', 'delivering', 'delivered', 'interested_future'] as OrderStatus[]).map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setStatus(s)}
+                className={`flex-1 min-w-[120px] px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 ${status === s
+                  ? s === 'delivered' ? 'bg-green-600 border-green-700 text-white shadow-md'
+                    : s === 'delivering' ? 'bg-orange-500 border-orange-600 text-white shadow-md'
+                      : s === 'interested_future' ? 'bg-blue-600 border-blue-700 text-white shadow-md'
+                        : 'bg-white border-orange-900 text-orange-900 shadow-sm'
+                  : 'bg-white text-gray-400 border-gray-100 hover:border-gray-300'
                   }`}
               >
-                <div className="flex items-center gap-3">
-                  <input
-                    type="radio"
-                    name="package"
-                    checked={packageId === pkg.id}
-                    onChange={() => setPackageId(pkg.id)}
-                    className="accent-green-700"
-                  />
-                  <div>
-                    <p className="text-sm font-medium text-gray-800">{pkg.title}</p>
-                    <p className="text-xs text-gray-500">{pkg.quantity} sachets</p>
-                  </div>
-                </div>
-                <span className="text-sm font-semibold text-gray-800">${pkg.price}</span>
-              </label>
+                {s === 'interested_future' ? 'Future Date' : s === 'delivered' ? 'Delivered' : s === 'delivering' ? 'Delivering' : 'Pending'}
+              </button>
             ))}
           </div>
         </div>
-      )}
 
-      {/* Delivery area */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Area *</label>
-        <select
-          value={area}
-          onChange={(e) => setArea(e.target.value as DeliveryArea)}
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
-        >
-          <option value="">— Select area —</option>
-          {Object.entries(DELIVERY_AREA_GROUPS).map(([group, areas]) => (
-            <optgroup key={group} label={group}>
-              {areas.map((a) => (
-                <option key={a} value={a}>
-                  {DELIVERY_AREA_LABELS[a]}
-                </option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
-      </div>
-
-      {/* Delivery date */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Delivery / Collection Date</label>
-        <input
-          type="date"
-          value={deliveryDate}
-          onChange={(e) => setDeliveryDate(e.target.value)}
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-        />
-      </div>
-
-      {/* Status (only when editing) */}
-      {editing && (
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
-          <div className="flex gap-4">
-            {(['pending', 'delivered'] as Order['status'][]).map((s) => (
-              <label key={s} className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="status"
-                  checked={status === s}
-                  onChange={() => setStatus(s)}
-                  className="accent-green-700"
-                />
-                <span className="text-sm text-gray-700 capitalize">{s}</span>
-              </label>
-            ))}
+        {status === 'interested_future' && (
+          <div className="animate-in fade-in slide-in-from-top-2">
+            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Follow-up / Future Date *</label>
+            <DatePicker
+              date={followUpDate ? parseISO(followUpDate) : undefined}
+              setDate={(d) => setFollowUpDate(d && isValid(d) ? format(d, 'yyyy-MM-dd') : '')}
+              placeholder="Select future date"
+              className="bg-white border-gray-100 py-6"
+            />
           </div>
-        </div>
-      )}
+        )}
+      </section>
 
       {/* Order Summary */}
       {selectedPackage && area && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-          <p className="text-xs font-bold text-green-700 uppercase tracking-wide mb-2">Order Summary</p>
-          <div className="space-y-1.5 text-sm text-gray-700">
-            <div className="flex justify-between">
-              <span className="font-medium text-gray-900">{selectedPackage.title}</span>
-              <span className="font-semibold text-green-800">${selectedPackage.price}</span>
+        <div className="bg-orange-50 border-2 border-orange-200 rounded-[2rem] p-6 shadow-xl shadow-orange-900/5 transition-all">
+          <p className="text-[10px] font-black text-orange-700 uppercase tracking-[0.2em] mb-4 text-center">Fulfillment Summary</p>
+          <div className="space-y-3">
+            <div className="flex justify-between items-center bg-white/50 p-3 rounded-xl border border-orange-100 font-bold">
+              <span className="text-gray-600 text-xs">Revenue</span>
+              <span className="text-orange-700 font-black">${selectedPackage.price}</span>
             </div>
-            <div className="flex justify-between text-xs text-gray-500 italic pb-1">
-              <span>(Actual business revenue)</span>
+            <div className="flex justify-between items-center bg-white/50 p-3 rounded-xl border border-orange-100 font-bold">
+              <span className="text-gray-600 text-xs">Delivery Fee</span>
+              <span className="text-orange-700 font-black">${deliveryFee}</span>
             </div>
-            <div className="flex justify-between border-t border-green-100 pt-2">
-              <span>Delivery Fee ({DELIVERY_AREA_LABELS[area as DeliveryArea]})</span>
-              <span className="font-medium">${deliveryFee}</span>
-            </div>
-            <div className="text-[10px] text-gray-400 -mt-1 mb-1">
-              * Goes directly to delivery person
-            </div>
-            <div className="flex justify-between font-bold text-lg text-green-900 border-t-2 border-green-200 pt-2 mt-2">
-              <span>Customer Pays</span>
-              <span>${totalPrice}</span>
+            <div className="flex justify-between items-center bg-orange-600 p-4 rounded-2xl shadow-lg shadow-orange-900/20 mt-2">
+              <span className="text-white text-sm font-black uppercase tracking-widest">Total Pay</span>
+              <span className="text-white text-2xl font-black tracking-tighter">${totalPrice}</span>
             </div>
           </div>
         </div>
       )}
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && (
+        <div className="bg-red-50 border border-red-100 p-4 rounded-2xl">
+          <p className="text-xs font-black text-red-600 uppercase tracking-widest text-center">{error}</p>
+        </div>
+      )}
 
-      <div className="flex justify-end gap-3 pt-1">
+      <div className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-4">
         <button
           type="button"
           onClick={onDone}
-          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+          className="w-full sm:w-auto px-10 py-4 text-[10px] font-black text-gray-400 hover:text-red-500 transition-colors uppercase tracking-widest"
         >
           Cancel
         </button>
         <button
           type="submit"
           disabled={saving}
-          className="px-4 py-2 text-sm font-medium text-white bg-orange-500 rounded-lg hover:bg-orange-600 disabled:opacity-60"
+          className="w-full sm:w-auto px-16 py-5 text-xs font-black text-white bg-orange-600 rounded-3xl hover:bg-orange-700 disabled:opacity-60 shadow-xl shadow-orange-900/10 transition-all active:scale-95 uppercase tracking-widest"
         >
-          {saving ? <><Spinner size={15} className="inline mr-1" />Saving…</> : editing ? 'Update Order' : 'Place Order'}
+          {saving ? 'Processing...' : editing ? 'Update Order Record' : 'Post Order'}
         </button>
       </div>
     </form>

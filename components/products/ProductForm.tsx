@@ -5,6 +5,7 @@ import { Plus, Trash2 } from 'lucide-react'
 import type { Product, Package } from '@/types'
 import { addProduct, updateProduct } from '@/lib/firestore'
 import { useToast } from '@/contexts/ToastContext'
+import { useAuth } from '@/contexts/AuthContext'
 import Spinner from '@/components/Spinner'
 
 interface Props {
@@ -17,6 +18,7 @@ function emptyPackage(): Package {
 }
 
 export default function ProductForm({ product, onDone }: Props) {
+  const { user } = useAuth()
   const editing = !!product
   const { toast } = useToast()
   const [name, setName] = useState(product?.name ?? '')
@@ -54,7 +56,13 @@ export default function ProductForm({ product, onDone }: Props) {
 
     setSaving(true)
     try {
-      const payload = { name: name.trim(), description: description.trim(), thumbnailUrl: thumbnailUrl.trim(), packages }
+      const payload = {
+        name: name.trim(),
+        description: description.trim(),
+        thumbnailUrl: thumbnailUrl.trim(),
+        packages,
+        ownerEmail: user?.email || ''
+      }
       if (editing) {
         await updateProduct(product.id, payload)
         toast('Product updated!')
