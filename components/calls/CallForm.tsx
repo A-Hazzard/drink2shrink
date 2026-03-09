@@ -321,9 +321,16 @@ export default function CallForm({ call, products, onDone }: Props) {
               "Based on your answers, Drink2Shrink would be a suitable product for you to achieve your goal of <span className="text-purple-700 font-black underline uppercase">{form.goal === 'lose_weight' ? 'Weight Loss' : 'Detox'}</span>."
             </p>
             <div className="bg-white/60 p-4 rounded-xl border border-purple-100/50">
-              <p className="text-[10px] font-black text-purple-900 leading-relaxed uppercase tracking-widest mb-1.5 opacity-50">Pitch Points:</p>
+              <p className="text-[10px] font-black text-purple-900 leading-relaxed uppercase tracking-widest mb-1.5 opacity-50">How it Works (Directions):</p>
               <p className="text-xs font-medium text-purple-800 leading-relaxed">
-                Add substance to 8oz water. Shake. Drink before bed. Morning detox starts with light gripes. All natural herbal efficiency.
+                Mix contents with 12 ounces of water until dissolved. Drink before bed.
+              </p>
+            </div>
+
+            <div className="bg-white border-l-4 border-purple-400 p-4 rounded-r-xl shadow-sm">
+              <p className="text-[10px] font-black text-purple-700 uppercase tracking-widest mb-2">Product Explanation Script</p>
+              <p className="text-xs font-medium text-gray-700 leading-relaxed italic">
+                "Drink2Shrink is a caffeine-free herbal infusion that naturally cleanses and detoxifies your body to restore healthy balance and improve its ability to heal itself. It boosts focus and energy while supporting weight management. It features <span className="font-black text-purple-700 underline">Cassia Angustifolia</span>, which acts as a gentle yet effective natural herbal laxative."
               </p>
             </div>
           </div>
@@ -490,6 +497,69 @@ export default function CallForm({ call, products, onDone }: Props) {
               className="w-full bg-white border border-gray-100 rounded-2xl px-6 py-4 text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-500 resize-none transition-all placeholder:text-gray-300 shadow-sm"
               placeholder="Any other specific requests or notes?"
             />
+          </div>
+        </section>
+
+        {/* Section 6: Product Knowledge FAQ */}
+        <section className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm space-y-6">
+          <div className="flex items-center gap-2 px-1">
+            <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em]">Quick Reference FAQ</h3>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {/* Drink2Shrink FAQ */}
+            <div className="bg-green-50/50 p-5 rounded-3xl border border-green-100/50">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-xl">🌿</span>
+                <h4 className="text-xs font-black text-green-800 uppercase tracking-wider">Drink2Shrink</h4>
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <p className="text-[9px] font-black text-green-600 uppercase tracking-widest mb-1 opacity-60">Target</p>
+                  <p className="text-xs font-bold text-gray-700">Bloating, constipation & waste buildup</p>
+                </div>
+                <div>
+                  <p className="text-[9px] font-black text-green-600 uppercase tracking-widest mb-1 opacity-60">How it works</p>
+                  <p className="text-[11px] font-medium text-gray-600 leading-relaxed">Gently cleanses your digestive tract while you sleep so you feel lighter by morning.</p>
+                </div>
+              </div>
+            </div>
+
+            {/* EpicSlim Collagen FAQ */}
+            <div className="bg-orange-50/50 p-5 rounded-3xl border border-orange-100/50">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-xl">🍍</span>
+                <h4 className="text-xs font-black text-orange-800 uppercase tracking-wider">EpicSlim Collagen</h4>
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <p className="text-[9px] font-black text-orange-600 uppercase tracking-widest mb-1 opacity-60">Target</p>
+                  <p className="text-xs font-bold text-gray-700">Appetite, Metabolism & Skin/Joints</p>
+                </div>
+                <div>
+                  <p className="text-[9px] font-black text-orange-600 uppercase tracking-widest mb-1 opacity-60">Formula</p>
+                  <p className="text-[11px] font-medium text-gray-600 leading-relaxed">Pina Colada flavor, 10g Collagen, Berberine & CaloriBurn GP®.</p>
+                </div>
+              </div>
+            </div>
+
+            {/* EpicSlim Coffee FAQ */}
+            <div className="bg-brown-50/50 p-5 rounded-3xl border border-gray-100" style={{ backgroundColor: '#fdf8f4' }}>
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-xl">☕</span>
+                <h4 className="text-xs font-black text-amber-900 uppercase tracking-wider">EpicSlim Coffee</h4>
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <p className="text-[9px] font-black text-amber-700 uppercase tracking-widest mb-1 opacity-60">Target</p>
+                  <p className="text-xs font-bold text-gray-700">Energy Focus & Fat Burning</p>
+                </div>
+                <div>
+                  <p className="text-[9px] font-black text-amber-700 uppercase tracking-widest mb-1 opacity-60">Key Info</p>
+                  <p className="text-[11px] font-medium text-gray-600 leading-relaxed">75mg Cafeine, 10g Collagen & Lion's Mane Mushrooms for recovery.</p>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
 
