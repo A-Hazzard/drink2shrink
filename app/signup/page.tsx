@@ -25,7 +25,7 @@ export default function SignupPage() {
         setLoading(true)
         setError('')
         try {
-            const { user } = await createUserWithEmailAndPassword(auth, email.trim(), password)
+            await createUserWithEmailAndPassword(auth, email.trim(), password)
 
             // Create profile
             await createOrUpdateProfile(email.trim(), {
@@ -36,8 +36,8 @@ export default function SignupPage() {
 
             toast('Welcome to Health is Wealth!')
             router.push('/dashboard')
-        } catch (err: any) {
-            setError(err.message || 'Failed to create account. Please try again.')
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to create account. Please try again.')
         } finally {
             setLoading(false)
         }

@@ -151,16 +151,26 @@ export interface Call {
 
 export type OrderStatus = 'pending' | 'delivered' | 'delivering' | 'interested_future'
 
-export interface Order {
-  id: string
-  callId: string
-  clientName: string
-  clientPhone: string
+export interface OrderItem {
   productId: string
   productName: string
   packageId: string
   packageTitle: string
   packagePrice: number
+  quantity: number
+}
+
+export interface Order {
+  id: string
+  callId: string
+  clientName: string
+  clientPhone: string
+  productId?: string
+  productName?: string
+  packageId?: string
+  packageTitle?: string
+  packagePrice?: number
+  items?: OrderItem[]
   area: DeliveryArea
   deliveryFee: number
   totalPrice: number

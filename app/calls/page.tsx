@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
-import { Plus, Pencil, Phone, Archive, RotateCcw, Trash2, RefreshCcw, Search, ArrowUpDown, Calendar, Filter, CalendarDays } from 'lucide-react'
+import { Plus, Pencil, Phone, Archive, RotateCcw, Trash2, RefreshCcw, Search, ArrowUpDown, Filter } from 'lucide-react'
 import { isWithinInterval, startOfDay, endOfDay } from 'date-fns'
 import { DateRangePicker } from '@/components/ui/date-range-picker'
 import { DateRange } from 'react-day-picker'
@@ -13,7 +13,7 @@ import CallForm from '@/components/calls/CallForm'
 import Badge from '@/components/Badge'
 import TableSkeleton from '@/components/skeletons/TableSkeleton'
 import { useAuth } from '@/contexts/AuthContext'
-import { useRouter } from 'next/navigation'
+
 
 const GOAL_LABELS: Record<string, string> = {
   lose_weight: 'Lose Weight',
@@ -42,7 +42,7 @@ const STATUS_LABELS: Record<CallOutcome, string> = {
 
 export default function CallsPage() {
   const { user, loading: authLoading } = useAuth()
-  const router = useRouter()
+
   const [calls, setCalls] = useState<Call[]>([])
   const [orders, setOrders] = useState<Order[]>([])
   const [products, setProducts] = useState<Product[]>([])
@@ -333,12 +333,20 @@ export default function CallsPage() {
                         <div className="text-xs font-black text-gray-800 uppercase tracking-tighter">
                           {(() => {
                             const order = orders.find(o => o.callId === call.id)
+                            if (order?.items && order.items.length > 1) return `${order.items.length} Products`
                             return order?.productName || '—'
                           })()}
                         </div>
                         <div className="text-[10px] text-gray-500 font-medium mt-0.5">
                           {(() => {
                             const order = orders.find(o => o.callId === call.id)
+                            if (order?.items && order.items.length > 1) {
+                              const qtys = order.items.reduce((s, i) => s + i.quantity, 0)
+                              return `${qtys} Packages Total`
+                            }
+                            if (order?.items && order.items.length === 1) {
+                              return `${order.items[0].packageTitle} (x${order.items[0].quantity})`
+                            }
                             return order?.packageTitle || 'Potential Interest'
                           })()}
                         </div>
@@ -425,6 +433,7 @@ export default function CallsPage() {
                     <p className="text-xs font-black text-gray-800 mt-0.5 tracking-tight uppercase truncate">
                       {(() => {
                         const order = orders.find(o => o.callId === call.id)
+                        if (order?.items && order.items.length > 1) return `${order.items.length} Products`
                         return order?.productName || 'TBD'
                       })()}
                     </p>
@@ -434,6 +443,13 @@ export default function CallsPage() {
                     <p className="text-xs font-bold text-gray-500 mt-0.5 tracking-tight truncate">
                       {(() => {
                         const order = orders.find(o => o.callId === call.id)
+                        if (order?.items && order.items.length > 1) {
+                          const qtys = order.items.reduce((s, i) => s + i.quantity, 0)
+                          return `${qtys} Packages`
+                        }
+                        if (order?.items && order.items.length === 1) {
+                          return `${order.items[0].packageTitle} (x${order.items[0].quantity})`
+                        }
                         return order?.packageTitle || 'NONE'
                       })()}
                     </p>
@@ -481,7 +497,7 @@ export default function CallsPage() {
           onClose={closeForm}
           wide
         >
-          <CallForm call={editing} products={products} onDone={closeForm} />
+          <CallForm call={editing} order={editing ? orders.find(o => o.callId === editing.id) : undefined} products={products} onDone={closeForm} />
         </Modal>
       )}
 

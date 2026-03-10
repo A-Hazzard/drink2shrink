@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import { LayoutDashboard, Package, Phone, ShoppingCart, Menu, X, BarChart3, LogOut, ChevronLeft, ChevronRight, User } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import gsap from 'gsap'

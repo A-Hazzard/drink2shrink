@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
-import { Plus, Pencil, ShoppingCart, Archive, RotateCcw, Trash2, RefreshCcw, DollarSign, Search, ArrowUpDown, Calendar, Filter, CalendarDays } from 'lucide-react'
+import { Plus, Pencil, ShoppingCart, Archive, RotateCcw, Trash2, RefreshCcw, DollarSign, Search, ArrowUpDown, Filter } from 'lucide-react'
 import { isWithinInterval, startOfDay, endOfDay } from 'date-fns'
 import { DateRangePicker } from '@/components/ui/date-range-picker'
 import { DateRange } from 'react-day-picker'
@@ -13,7 +13,7 @@ import OrderForm from '@/components/orders/OrderForm'
 import Badge from '@/components/Badge'
 import TableSkeleton from '@/components/skeletons/TableSkeleton'
 import { useAuth } from '@/contexts/AuthContext'
-import { useRouter } from 'next/navigation'
+
 
 function fmt(ts?: { seconds: number }) {
   if (!ts) return '—'
@@ -35,7 +35,6 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
 
 export default function OrdersPage() {
   const { user, loading: authLoading } = useAuth()
-  const router = useRouter()
   const [orders, setOrders] = useState<Order[]>([])
   const [calls, setCalls] = useState<Call[]>([])
   const [products, setProducts] = useState<Product[]>([])
@@ -329,8 +328,12 @@ export default function OrdersPage() {
                         <div className="text-[10px] text-gray-400 font-bold uppercase mt-0.5 tracking-tight">{order.clientPhone}</div>
                       </td>
                       <td className="px-6 py-4">
-                        <div className="text-xs font-black text-gray-800 uppercase tracking-tighter">{order.productName}</div>
-                        <div className="text-[10px] text-gray-500 font-medium mt-0.5">{order.packageTitle}</div>
+                        <div className="text-xs font-black text-gray-800 uppercase tracking-tighter">
+                          {order.items && order.items.length > 1 ? `${order.items.length} Products` : order.productName}
+                        </div>
+                        <div className="text-[10px] text-gray-500 font-medium mt-0.5">
+                          {order.items && order.items.length > 1 ? `${order.items.reduce((s, i) => s + i.quantity, 0)} Packages Total` : (order.items && order.items.length === 1 ? `${order.items[0].packageTitle} (x${order.items[0].quantity})` : order.packageTitle)}
+                        </div>
                       </td>
                       <td className="px-6 py-4">
                         <div className="text-[10px] font-black text-green-700 uppercase tracking-tighter">$ {order.packagePrice}</div>
@@ -405,11 +408,15 @@ export default function OrdersPage() {
                 <div className="bg-gray-50/50 p-3 rounded-2xl border border-gray-100 space-y-2">
                   <div className="flex justify-between items-center text-xs font-bold">
                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Product</p>
-                    <p className="text-gray-800 uppercase tracking-tighter">{order.productName}</p>
+                    <p className="text-gray-800 uppercase tracking-tighter">
+                      {order.items && order.items.length > 1 ? `${order.items.length} Products` : order.productName}
+                    </p>
                   </div>
                   <div className="flex justify-between items-center text-xs font-bold">
                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Package</p>
-                    <p className="text-gray-600">{order.packageTitle}</p>
+                    <p className="text-gray-600">
+                      {order.items && order.items.length > 1 ? `${order.items.reduce((s, i) => s + i.quantity, 0)} Packages` : (order.items && order.items.length === 1 ? `${order.items[0].packageTitle} (x${order.items[0].quantity})` : order.packageTitle)}
+                    </p>
                   </div>
                 </div>
 

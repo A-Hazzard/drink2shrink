@@ -7,11 +7,9 @@ import type { Product } from '@/types'
 import Modal from '@/components/Modal'
 import ProductForm from '@/components/products/ProductForm'
 import { useAuth } from '@/contexts/AuthContext'
-import { useRouter } from 'next/navigation'
 
 export default function ProductsPage() {
   const { user, loading: authLoading } = useAuth()
-  const router = useRouter()
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)

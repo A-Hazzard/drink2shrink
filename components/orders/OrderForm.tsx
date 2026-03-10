@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { format, parseISO, isValid } from 'date-fns'
-import type { Call, Product, Order, DeliveryArea, OrderStatus, CallOutcome } from '@/types'
+import type { Call, Product, Order, DeliveryArea, OrderStatus, CallOutcome, OrderItem } from '@/types'
 import { DELIVERY_FEES, DELIVERY_AREA_LABELS, DELIVERY_AREA_GROUPS } from '@/types'
 import { addOrder, updateOrder, updateCall } from '@/lib/firestore'
 import { useToast } from '@/contexts/ToastContext'
@@ -23,8 +23,24 @@ export default function OrderForm({ order, calls, products, onDone }: Props) {
   const { toast } = useToast()
 
   const [callId, setCallId] = useState(order?.callId ?? '')
-  const [productId, setProductId] = useState(order?.productId ?? '')
-  const [packageId, setPackageId] = useState(order?.packageId ?? '')
+  const [productId, setProductId] = useState('')
+  const [packageId, setPackageId] = useState('')
+  const [quantity, setQuantity] = useState<number>(1)
+  const [items, setItems] = useState<OrderItem[]>(() => {
+    if (order?.items && order.items.length > 0) return order.items
+    if (order?.productId && order?.packageId) {
+      return [{
+        productId: order.productId,
+        productName: order.productName || '',
+        packageId: order.packageId,
+        packageTitle: order.packageTitle || '',
+        packagePrice: order.packagePrice || 0,
+        quantity: 1
+      }]
+    }
+    return []
+  })
+
   const [area, setArea] = useState<DeliveryArea | ''>(order?.area ?? '')
   const [deliveryDate, setDeliveryDate] = useState(order?.deliveryDate ?? '')
   const [followUpDate, setFollowUpDate] = useState(order?.followUpDate ?? '')
@@ -35,8 +51,9 @@ export default function OrderForm({ order, calls, products, onDone }: Props) {
   const selectedCall = calls.find((c) => c.id === callId)
   const selectedProduct = products.find((p) => p.id === productId)
   const selectedPackage = selectedProduct?.packages.find((p) => p.id === packageId)
+  const packagesTotal = items.reduce((sum, item) => sum + (item.packagePrice * item.quantity), 0)
   const deliveryFee = area ? DELIVERY_FEES[area] : 0
-  const totalPrice = (selectedPackage?.price ?? 0) + deliveryFee
+  const totalPrice = packagesTotal + deliveryFee
 
   // Pre-fill area from call record if available
   function handleCallChange(id: string) {
@@ -51,15 +68,40 @@ export default function OrderForm({ order, calls, products, onDone }: Props) {
     setPackageId('')
   }
 
+  function handleAddItem() {
+    if (!selectedProduct) return setError('Please select a product.')
+    if (!selectedPackage) return setError('Please select a package.')
+    if (quantity < 1) return setError('Quantity must be at least 1.')
+
+    setItems(prev => [
+      ...prev,
+      {
+        productId: selectedProduct.id,
+        productName: selectedProduct.name,
+        packageId: selectedPackage.id,
+        packageTitle: selectedPackage.title,
+        packagePrice: selectedPackage.price,
+        quantity: quantity
+      }
+    ])
+    setProductId('')
+    setPackageId('')
+    setQuantity(1)
+    setError('')
+  }
+
+  function handleRemoveItem(index: number) {
+    setItems(prev => prev.filter((_, i) => i !== index))
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
     if (!callId) return setError('Please select a client.')
-    if (!productId) return setError('Please select a product.')
-    if (!packageId) return setError('Please select a package.')
+    if (items.length === 0) return setError('Please assign at least one product.')
     if (!area) return setError('Please select a delivery area.')
     if (status === 'interested_future' && !followUpDate) return setError('Please select a follow-up date.')
-    if (!selectedCall || !selectedPackage || !selectedProduct) return
+    if (!selectedCall) return
 
     setSaving(true)
     try {
@@ -67,11 +109,12 @@ export default function OrderForm({ order, calls, products, onDone }: Props) {
         callId,
         clientName: selectedCall.name,
         clientPhone: selectedCall.phone,
-        productId,
-        productName: selectedProduct.name,
-        packageId,
-        packageTitle: selectedPackage.title,
-        packagePrice: selectedPackage.price,
+        items,
+        productId: items[0].productId,
+        productName: items[0].productName,
+        packageId: items[0].packageId,
+        packageTitle: items[0].packageTitle,
+        packagePrice: packagesTotal,
         area: area as DeliveryArea,
         deliveryFee,
         totalPrice,
@@ -136,49 +179,67 @@ export default function OrderForm({ order, calls, products, onDone }: Props) {
 
       {/* Product & Package */}
       <section className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4">
-        <div>
-          <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Product *</label>
-          <select
-            value={productId}
-            onChange={(e) => handleProductChange(e.target.value)}
-            className="w-full bg-gray-50 border-transparent rounded-2xl px-5 py-3 text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all"
-          >
-            <option value="">— Select Product —</option>
-            {products.map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Product</label>
+            <select
+              value={productId}
+              onChange={(e) => handleProductChange(e.target.value)}
+              className="w-full bg-gray-50 border-transparent rounded-2xl px-5 py-3 text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all"
+            >
+              <option value="">— Select Product —</option>
+              {products.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className={`transition-all duration-300 ${productId ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`}>
+            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Package & Qty</label>
+            <div className="flex gap-2">
+              <select
+                value={packageId}
+                onChange={(e) => setPackageId(e.target.value)}
+                className="flex-1 min-w-0 bg-gray-50 border-transparent rounded-2xl px-5 py-3 text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              >
+                <option value="">— Select Package —</option>
+                {selectedProduct?.packages.map((pkg) => (
+                  <option key={pkg.id} value={pkg.id}>{pkg.title} (${pkg.price})</option>
+                ))}
+              </select>
+              <input
+                type="number"
+                min="1"
+                value={quantity}
+                onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
+                className="w-16 bg-gray-50 border-transparent rounded-2xl px-2 py-3 text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500 text-center"
+              />
+              <button
+                type="button"
+                onClick={handleAddItem}
+                className="px-4 bg-orange-600 text-white text-xs font-black rounded-2xl hover:bg-orange-700 transition"
+              >
+                Add
+              </button>
+            </div>
+          </div>
         </div>
 
-        {selectedProduct && (
-          <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
-            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Package *</label>
-            <div className="grid grid-cols-1 gap-2">
-              {selectedProduct.packages.map((pkg) => (
-                <label
-                  key={pkg.id}
-                  className={`flex items-center justify-between px-5 py-3 border-2 rounded-2xl cursor-pointer transition-all active:scale-[0.99] ${packageId === pkg.id
-                    ? 'border-orange-500 bg-orange-50 shadow-sm'
-                    : 'border-gray-50 hover:border-gray-100 bg-gray-50/50'
-                    }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="radio"
-                      name="package"
-                      checked={packageId === pkg.id}
-                      onChange={() => setPackageId(pkg.id)}
-                      className="accent-orange-600 w-4 h-4"
-                    />
-                    <div>
-                      <p className={`text-xs font-black uppercase tracking-tight ${packageId === pkg.id ? 'text-orange-900' : 'text-gray-700'}`}>{pkg.title}</p>
-                      <p className="text-[10px] font-bold text-gray-400">{pkg.quantity} Sachets</p>
-                    </div>
-                  </div>
-                  <span className={`text-sm font-black ${packageId === pkg.id ? 'text-orange-700' : 'text-gray-900'}`}>${pkg.price}</span>
-                </label>
-              ))}
-            </div>
+        {items.length > 0 && (
+          <div className="bg-gray-50 p-4 rounded-2xl space-y-2">
+            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Cart Items</p>
+            {items.map((item, idx) => (
+              <div key={idx} className="flex justify-between items-center bg-white p-3 rounded-xl shadow-sm border border-gray-100">
+                <div className="min-w-0">
+                  <p className="text-xs font-black text-gray-900 truncate">{item.productName}</p>
+                  <p className="text-[10px] font-bold text-gray-500 truncate">{item.packageTitle} x {item.quantity}</p>
+                </div>
+                <div className="flex items-center gap-3 shrink-0 ml-2">
+                  <p className="text-sm font-black text-orange-700">${item.packagePrice * item.quantity}</p>
+                  <button type="button" onClick={() => handleRemoveItem(idx)} className="text-gray-400 hover:text-red-500 text-lg leading-none font-bold px-1">&times;</button>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </section>
@@ -253,13 +314,13 @@ export default function OrderForm({ order, calls, products, onDone }: Props) {
       </section>
 
       {/* Order Summary */}
-      {selectedPackage && area && (
+      {items.length > 0 && area && (
         <div className="bg-orange-50 border-2 border-orange-200 rounded-[2rem] p-6 shadow-xl shadow-orange-900/5 transition-all">
           <p className="text-[10px] font-black text-orange-700 uppercase tracking-[0.2em] mb-4 text-center">Fulfillment Summary</p>
           <div className="space-y-3">
             <div className="flex justify-between items-center bg-white/50 p-3 rounded-xl border border-orange-100 font-bold">
               <span className="text-gray-600 text-xs">Revenue</span>
-              <span className="text-orange-700 font-black">${selectedPackage.price}</span>
+              <span className="text-orange-700 font-black">${packagesTotal}</span>
             </div>
             <div className="flex justify-between items-center bg-white/50 p-3 rounded-xl border border-orange-100 font-bold">
               <span className="text-gray-600 text-xs">Delivery Fee</span>

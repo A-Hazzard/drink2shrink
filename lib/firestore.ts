@@ -7,7 +7,6 @@ import {
   onSnapshot,
   serverTimestamp,
   query,
-  orderBy,
   where,
   setDoc,
   getDoc,
@@ -41,8 +40,8 @@ export function subscribeProducts(ownerEmail: string, cb: (products: Product[]) 
       const all = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Product))
       // Sort manually to avoid composite index crash if missing
       const sorted = all.sort((a, b) => {
-        const t1 = (a.createdAt as any)?.seconds || 0
-        const t2 = (b.createdAt as any)?.seconds || 0
+        const t1 = (a.createdAt as { seconds?: number })?.seconds || 0
+        const t2 = (b.createdAt as { seconds?: number })?.seconds || 0
         return t2 - t1
       })
       cb(sorted.filter(p => !!p.archivedAt === showArchived))
@@ -82,8 +81,8 @@ export function subscribeCalls(ownerEmail: string, cb: (calls: Call[]) => void, 
       const all = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Call))
       // Sort manually
       const sorted = all.sort((a, b) => {
-        const t1 = (a.createdAt as any)?.seconds || 0
-        const t2 = (b.createdAt as any)?.seconds || 0
+        const t1 = (a.createdAt as { seconds?: number })?.seconds || 0
+        const t2 = (b.createdAt as { seconds?: number })?.seconds || 0
         return t2 - t1
       })
       cb(sorted.filter(c => !!c.archivedAt === showArchived))
@@ -123,8 +122,8 @@ export function subscribeOrders(ownerEmail: string, cb: (orders: Order[]) => voi
       const all = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Order))
       // Sort manually
       const sorted = all.sort((a, b) => {
-        const t1 = (a.createdAt as any)?.seconds || 0
-        const t2 = (b.createdAt as any)?.seconds || 0
+        const t1 = (a.createdAt as { seconds?: number })?.seconds || 0
+        const t2 = (b.createdAt as { seconds?: number })?.seconds || 0
         return t2 - t1
       })
       cb(sorted.filter(o => !!o.archivedAt === showArchived))
@@ -176,7 +175,6 @@ export function subscribeUserProfile(email: string, cb: (profile: UserProfile | 
 }
 
 export async function getUserProfile(email: string): Promise<UserProfile | null> {
-  const q = query(collection(db, 'userProfiles'), where('email', '==', email))
   const snap = await getDoc(doc(db, 'userProfiles', email)) // Using email as ID for profiles
   if (snap.exists()) return { id: snap.id, ...snap.data() } as UserProfile
   return null

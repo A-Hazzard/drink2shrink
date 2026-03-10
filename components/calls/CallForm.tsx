@@ -2,15 +2,16 @@
 
 import { useState, useMemo } from 'react'
 import { format, parseISO, isValid } from 'date-fns'
-import type { Call, CallGoal, CallOutcome, OrderStatus, DeliveryArea, Product, Order } from '@/types'
+import type { Call, CallGoal, CallOutcome, OrderStatus, DeliveryArea, Product, Order, OrderItem } from '@/types'
 import { DELIVERY_AREA_LABELS, DELIVERY_AREA_GROUPS, DELIVERY_FEES } from '@/types'
-import { addCall, updateCall, addOrder } from '@/lib/firestore'
+import { addCall, updateCall, addOrder, updateOrder } from '@/lib/firestore'
 import { useToast } from '@/contexts/ToastContext'
 import { DatePicker } from '@/components/ui/date-picker'
 import { useAuth } from '@/contexts/AuthContext'
 
 interface Props {
   call?: Call
+  order?: Order
   products: Product[]
   onDone: () => void
 }
@@ -37,7 +38,7 @@ const initialState = (): Omit<Call, 'id' | 'createdAt'> => ({
   ownerEmail: '',
 })
 
-export default function CallForm({ call, products, onDone }: Props) {
+export default function CallForm({ call, order, products, onDone }: Props) {
   const editing = !!call
   const { user } = useAuth()
   const { toast } = useToast()
@@ -71,6 +72,22 @@ export default function CallForm({ call, products, onDone }: Props) {
 
   const [selectedProductId, setSelectedProductId] = useState<string>('')
   const [selectedPackageId, setSelectedPackageId] = useState<string>('')
+  const [selectedQuantity, setSelectedQuantity] = useState<number>(1)
+  const [items, setItems] = useState<OrderItem[]>(() => {
+    if (order?.items && order.items.length > 0) return order.items
+    if (order?.productId && order?.packageId) {
+      return [{
+        productId: order.productId,
+        productName: order.productName || '',
+        packageId: order.packageId,
+        packageTitle: order.packageTitle || '',
+        packagePrice: order.packagePrice || 0,
+        quantity: 1
+      }]
+    }
+    return []
+  })
+
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -83,6 +100,32 @@ export default function CallForm({ call, products, onDone }: Props) {
     selectedProduct?.packages.find(pkg => pkg.id === selectedPackageId),
     [selectedProduct, selectedPackageId]
   )
+
+  function handleAddItem() {
+    if (!selectedProduct) return setError('Please select a product.')
+    if (!selectedPackage) return setError('Please select a package.')
+    if (selectedQuantity < 1) return setError('Quantity must be at least 1.')
+
+    setItems(prev => [
+      ...prev,
+      {
+        productId: selectedProduct.id,
+        productName: selectedProduct.name,
+        packageId: selectedPackage.id,
+        packageTitle: selectedPackage.title,
+        packagePrice: selectedPackage.price,
+        quantity: selectedQuantity
+      }
+    ])
+    setSelectedProductId('')
+    setSelectedPackageId('')
+    setSelectedQuantity(1)
+    setError('')
+  }
+
+  function handleRemoveItem(index: number) {
+    setItems(prev => prev.filter((_, i) => i !== index))
+  }
 
   function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -98,8 +141,7 @@ export default function CallForm({ call, products, onDone }: Props) {
 
     const requiresOrder = form.outcome === 'delivered' || form.outcome === 'delivering' || form.outcome === 'interested_future'
     if (requiresOrder) {
-      if (!selectedProductId) return setError('Please select a product.')
-      if (!selectedPackageId) return setError('Please select a package.')
+      if (items.length === 0) return setError('Please assign at least one product.')
       if (!form.area) return setError('Please select a delivery area.')
       if (form.outcome === 'interested_future' && !form.followUpDate) return setError('Please select a follow-up date.')
     }
@@ -120,26 +162,35 @@ export default function CallForm({ call, products, onDone }: Props) {
       }
 
       // Automatically place order if it's a sale
-      if (requiresOrder && callId && selectedProduct && selectedPackage && form.area) {
+      if (requiresOrder && callId && items.length > 0 && form.area) {
         const deliveryFee = DELIVERY_FEES[form.area]
+        const packagePrice = items.reduce((sum, item) => sum + (item.packagePrice * item.quantity), 0)
+
         const orderPayload: Omit<Order, 'id' | 'createdAt'> = {
           callId,
           clientName: form.name,
           clientPhone: form.phone,
-          productId: selectedProduct.id,
-          productName: selectedProduct.name,
-          packageId: selectedPackage.id,
-          packageTitle: selectedPackage.title,
-          packagePrice: selectedPackage.price,
+          items, // set items
+          // Add first item's details as fallback for backward compatibility
+          productId: items[0].productId,
+          productName: items[0].productName,
+          packageId: items[0].packageId,
+          packageTitle: items[0].packageTitle,
+          packagePrice,
           area: form.area,
           deliveryFee,
-          totalPrice: selectedPackage.price + deliveryFee,
+          totalPrice: packagePrice + deliveryFee,
           status: form.outcome as OrderStatus, // Cast since types align
           followUpDate: form.followUpDate,
           ownerEmail: user?.email || '',
         }
-        await addOrder(orderPayload, callId)
-        toast('Order linked successfully!')
+        if (order?.id) {
+          await updateOrder(order.id, orderPayload)
+          toast('Order updated successfully!')
+        } else {
+          await addOrder(orderPayload, callId)
+          toast('Order linked successfully!')
+        }
       }
 
       onDone()
@@ -391,19 +442,53 @@ export default function CallForm({ call, products, onDone }: Props) {
             </div>
 
             <div className={`transition-all duration-300 ${selectedProductId ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`}>
-              <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Assign Package</label>
-              <select
-                value={selectedPackageId}
-                onChange={(e) => setSelectedPackageId(e.target.value)}
-                className="w-full bg-gray-50 border-transparent rounded-2xl px-5 py-3 text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500"
-              >
-                <option value="">— Select Package —</option>
-                {selectedProduct?.packages.map(pkg => (
-                  <option key={pkg.id} value={pkg.id}>{pkg.title} (${pkg.price})</option>
-                ))}
-              </select>
+              <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Assign Package & Qty</label>
+              <div className="flex gap-2">
+                <select
+                  value={selectedPackageId}
+                  onChange={(e) => setSelectedPackageId(e.target.value)}
+                  className="flex-1 min-w-0 bg-gray-50 border-transparent rounded-2xl px-5 py-3 text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                >
+                  <option value="">— Select Package —</option>
+                  {selectedProduct?.packages.map(pkg => (
+                    <option key={pkg.id} value={pkg.id}>{pkg.title} (${pkg.price})</option>
+                  ))}
+                </select>
+                <input
+                  type="number"
+                  min="1"
+                  value={selectedQuantity}
+                  onChange={(e) => setSelectedQuantity(parseInt(e.target.value) || 1)}
+                  className="w-16 bg-gray-50 border-transparent rounded-2xl px-2 py-3 text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500 text-center"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddItem}
+                  className="px-4 bg-orange-600 text-white text-xs font-black rounded-2xl hover:bg-orange-700 transition"
+                >
+                  Add
+                </button>
+              </div>
             </div>
           </div>
+
+          {items.length > 0 && (
+            <div className="bg-gray-50 p-4 rounded-2xl space-y-2">
+              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Cart Items</p>
+              {items.map((item, idx) => (
+                <div key={idx} className="flex justify-between items-center bg-white p-3 rounded-xl shadow-sm border border-gray-100">
+                  <div className="min-w-0">
+                    <p className="text-xs font-black text-gray-900 truncate">{item.productName}</p>
+                    <p className="text-[10px] font-bold text-gray-500 truncate">{item.packageTitle} x {item.quantity}</p>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0 ml-2">
+                    <p className="text-sm font-black text-orange-700">${item.packagePrice * item.quantity}</p>
+                    <button type="button" onClick={() => handleRemoveItem(idx)} className="text-gray-400 hover:text-red-500 text-lg leading-none font-bold px-1">&times;</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div>
@@ -437,14 +522,14 @@ export default function CallForm({ call, products, onDone }: Props) {
             </div>
           </div>
 
-          {selectedPackage && form.area && (
+          {items.length > 0 && form.area && (
             <div className="bg-orange-500 rounded-2xl p-5 text-white flex items-center justify-between shadow-lg shadow-orange-900/20 active:scale-[0.99] transition-all">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-80">Order Summary</p>
-                <p className="text-2xl font-black tracking-tighter">${selectedPackage.price + DELIVERY_FEES[form.area]}</p>
+                <p className="text-2xl font-black tracking-tighter">${items.reduce((sum, item) => sum + (item.packagePrice * item.quantity), 0) + DELIVERY_FEES[form.area]}</p>
               </div>
               <div className="text-right">
-                <p className="text-xs font-black uppercase tracking-widest">{selectedPackage.title}</p>
+                <p className="text-xs font-black uppercase tracking-widest">{items.length} Item{items.length !== 1 ? 's' : ''}</p>
                 <p className="text-[10px] font-bold opacity-70">Incl. ${DELIVERY_FEES[form.area]} delivery</p>
               </div>
             </div>

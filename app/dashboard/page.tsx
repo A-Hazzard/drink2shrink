@@ -10,7 +10,6 @@ import {
   XCircle,
   RefreshCcw,
   Truck,
-  Calendar,
   Clock,
   CalendarDays
 } from 'lucide-react'
@@ -43,7 +42,7 @@ import DashboardSkeleton from '@/components/skeletons/DashboardSkeleton'
 import { DateRangePicker } from '@/components/ui/date-range-picker'
 import { DateRange } from 'react-day-picker'
 import { useAuth } from '@/contexts/AuthContext'
-import { useRouter } from 'next/navigation'
+
 
 // === Types ===
 type TimeFilter = 'today' | 'yesterday' | '7d' | '30d' | 'this_month' | 'last_month' | '6m' | '12m' | 'all' | 'custom'
@@ -107,7 +106,6 @@ function fmt(ts?: { seconds: number }) {
 
 export default function DashboardPage() {
   const { user, loading: authLoading } = useAuth()
-  const router = useRouter()
   const [calls, setCalls] = useState<Call[]>([])
   const [orders, setOrders] = useState<Order[]>([])
   const [products, setProducts] = useState<Product[]>([])
@@ -463,7 +461,7 @@ export default function DashboardPage() {
                     <div className="min-w-0 pr-4">
                       <p className="text-sm font-black text-gray-900 truncate group-hover:text-green-700 transition-colors uppercase tracking-tight">{o.clientName}</p>
                       <p className="text-[10px] font-bold text-gray-400 mt-0.5 truncate uppercase">
-                        {o.productName} • {o.packageTitle}
+                        {o.items && o.items.length > 1 ? `${o.items.length} Products (${o.items.reduce((s, i) => s + i.quantity, 0)} Pkgs)` : `${o.productName} • ${o.packageTitle}`}
                       </p>
                     </div>
                     <div className="text-right shrink-0">

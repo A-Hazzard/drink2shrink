@@ -33,7 +33,7 @@ export default function ProfilePage() {
                 logoUrl: logoUrl.trim(),
             })
             toast('Profile updated successfully!')
-        } catch (err) {
+        } catch {
             toast('Failed to update profile', 'error')
         } finally {
             setSaving(false)
