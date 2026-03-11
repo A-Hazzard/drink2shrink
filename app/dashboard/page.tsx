@@ -108,7 +108,7 @@ export default function DashboardPage() {
   const { user, loading: authLoading } = useAuth()
   const [calls, setCalls] = useState<Call[]>([])
   const [orders, setOrders] = useState<Order[]>([])
-  const [products, setProducts] = useState<Product[]>([])
+  const [_products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshKey, setRefreshKey] = useState(0)
 

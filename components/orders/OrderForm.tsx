@@ -69,8 +69,11 @@ export default function OrderForm({ order, calls, products, onDone }: Props) {
   }
 
   function handleAddItem() {
-    if (!selectedProduct) return setError('Please select a product.')
-    if (!selectedPackage) return setError('Please select a package.')
+    setError('')
+    if (!productId) return setError('Please select a product first.')
+    if (!packageId) return setError('Please select a package.')
+    if (!selectedProduct) return setError('Selected product not found.')
+    if (!selectedPackage) return setError('Selected package not found.')
     if (quantity < 1) return setError('Quantity must be at least 1.')
 
     setItems(prev => [
@@ -98,8 +101,22 @@ export default function OrderForm({ order, calls, products, onDone }: Props) {
     e.preventDefault()
     setError('')
     if (!callId) return setError('Please select a client.')
-    if (items.length === 0) return setError('Please assign at least one product.')
+
+    // If items is empty but they have a package selected, auto-add it
+    if (items.length === 0 && packageId && selectedPackage) {
+      items.push({
+        productId: selectedProduct!.id,
+        productName: selectedProduct!.name,
+        packageId: selectedPackage.id,
+        packageTitle: selectedPackage.title,
+        packagePrice: selectedPackage.price,
+        quantity: quantity
+      })
+    }
+
+    if (items.length === 0) return setError('Please add at least one package to the order (select product/package then click Add).')
     if (!area) return setError('Please select a delivery area.')
+    if (!deliveryDate) return setError('Please select a delivery date.')
     if (status === 'interested_future' && !followUpDate) return setError('Please select a follow-up date.')
     if (!selectedCall) return
 

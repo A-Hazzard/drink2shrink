@@ -102,8 +102,11 @@ export default function CallForm({ call, order, products, onDone }: Props) {
   )
 
   function handleAddItem() {
-    if (!selectedProduct) return setError('Please select a product.')
-    if (!selectedPackage) return setError('Please select a package.')
+    setError('')
+    if (!selectedProductId) return setError('Please select a product first.')
+    if (!selectedPackageId) return setError('Please select a package.')
+    if (!selectedProduct) return setError('Selected product not found.')
+    if (!selectedPackage) return setError('Selected package not found.')
     if (selectedQuantity < 1) return setError('Quantity must be at least 1.')
 
     setItems(prev => [
@@ -141,7 +144,19 @@ export default function CallForm({ call, order, products, onDone }: Props) {
 
     const requiresOrder = form.outcome === 'delivered' || form.outcome === 'delivering' || form.outcome === 'interested_future'
     if (requiresOrder) {
-      if (items.length === 0) return setError('Please assign at least one product.')
+      // If items is empty but they have a package selected, auto-add it
+      if (items.length === 0 && selectedPackageId && selectedPackage) {
+        items.push({
+          productId: selectedProduct!.id,
+          productName: selectedProduct!.name,
+          packageId: selectedPackage.id,
+          packageTitle: selectedPackage.title,
+          packagePrice: selectedPackage.price,
+          quantity: selectedQuantity
+        })
+      }
+
+      if (items.length === 0) return setError('Please add a package to the order (select product/package then click Add).')
       if (!form.area) return setError('Please select a delivery area.')
       if (form.outcome === 'interested_future' && !form.followUpDate) return setError('Please select a follow-up date.')
     }
