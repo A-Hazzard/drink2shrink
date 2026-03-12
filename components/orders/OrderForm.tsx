@@ -23,9 +23,9 @@ export default function OrderForm({ order, calls, products, onDone }: Props) {
   const { toast } = useToast()
 
   const [callId, setCallId] = useState(order?.callId ?? '')
-  const [productId, setProductId] = useState('')
-  const [packageId, setPackageId] = useState('')
-  const [quantity, setQuantity] = useState<number>(1)
+  const [productId, setProductId] = useState(order?.items?.[0]?.productId || order?.productId || '')
+  const [packageId, setPackageId] = useState(order?.items?.[0]?.packageId || order?.packageId || '')
+  const [quantity, setQuantity] = useState<number>(order?.items?.[0]?.quantity || 1)
   const [items, setItems] = useState<OrderItem[]>(() => {
     if (order?.items && order.items.length > 0) return order.items
     if (order?.productId && order?.packageId) {
@@ -305,9 +305,9 @@ export default function OrderForm({ order, calls, products, onDone }: Props) {
                 onClick={() => setStatus(s)}
                 className={`flex-1 min-w-[120px] px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 ${status === s
                   ? s === 'delivered' ? 'bg-green-600 border-green-700 text-white shadow-md'
-                    : s === 'delivering' ? 'bg-orange-500 border-orange-600 text-white shadow-md'
-                      : s === 'interested_future' ? 'bg-blue-600 border-blue-700 text-white shadow-md'
-                        : 'bg-white border-orange-900 text-orange-900 shadow-sm'
+                    : s === 'delivering' ? 'bg-indigo-600 border-indigo-700 text-white shadow-md shadow-indigo-900/10'
+                      : s === 'interested_future' ? 'bg-blue-600 border-blue-700 text-white shadow-md shadow-blue-900/10'
+                        : 'bg-amber-500 border-amber-600 text-white shadow-md shadow-amber-900/10'
                   : 'bg-white text-gray-400 border-gray-100 hover:border-gray-300'
                   }`}
               >

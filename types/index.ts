@@ -149,7 +149,7 @@ export interface Call {
   ownerEmail: string
 }
 
-export type OrderStatus = 'pending' | 'delivered' | 'delivering' | 'interested_future'
+export type OrderStatus = 'pending' | 'delivered' | 'delivering' | 'interested_future' | 'rejected'
 
 export interface OrderItem {
   productId: string

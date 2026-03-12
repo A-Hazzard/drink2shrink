@@ -6,8 +6,8 @@ interface Props {
 const STYLES: Record<Props['variant'], string> = {
   delivered: 'bg-green-100 text-green-800 border border-green-200',
   rejected: 'bg-red-100 text-red-700 border border-red-200',
-  pending: 'bg-orange-50 text-orange-700 border border-orange-100',
-  delivering: 'bg-orange-100 text-orange-800 border border-orange-200',
+  pending: 'bg-amber-100 text-amber-700 border border-amber-200',
+  delivering: 'bg-indigo-100 text-indigo-700 border border-indigo-200',
   interested_future: 'bg-blue-100 text-blue-800 border border-blue-200',
   archived: 'bg-gray-100 text-gray-800 border border-gray-200',
   neutral: 'bg-gray-100 text-gray-700',

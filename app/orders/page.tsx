@@ -30,7 +30,8 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
   pending: 'Pending',
   delivered: 'Delivered',
   delivering: 'Delivering',
-  interested_future: 'Future Date'
+  interested_future: 'Future Date',
+  rejected: 'Rejected'
 }
 
 export default function OrdersPage() {
@@ -90,8 +91,11 @@ export default function OrdersPage() {
       })
     }
 
-    // 3. Status Filter
-    if (statusFilter !== 'all') {
+    // 3. Status Filter & Visibility Restrictions
+    // Per user request: Only 'delivering' and 'interested_future' show up under orders.
+    if (statusFilter === 'all') {
+      result = result.filter(o => o.status === 'delivering' || o.status === 'interested_future')
+    } else {
       result = result.filter(o => o.status === statusFilter)
     }
 
@@ -163,9 +167,25 @@ export default function OrdersPage() {
     }
   }
 
-  const activeRevenue = orders
-    .filter(o => o.status === 'delivered')
+  // Calculate totals for currently visible "Active" orders (Delivering & Future)
+  const activeFulfillment = useMemo(() => {
+    // Also exclude archived from active totals
+    const activeOrders = orders.filter(o => !o.archivedAt && (o.status === 'delivering' || o.status === 'interested_future'))
+    const totalItems = activeOrders.reduce((sum, o) => {
+      if (o.items && o.items.length > 0) {
+        return sum + o.items.reduce((s, i) => s + i.quantity, 0)
+      }
+      return sum + 1
+    }, 0)
+    // Use totalPrice for DUE because that's what the client needs to pay (including fees)
+    const totalRevenue = activeOrders.reduce((sum, o) => sum + (o.totalPrice ?? 0), 0)
+    return { count: activeOrders.length, items: totalItems, revenue: totalRevenue }
+  }, [orders])
+
+  const deliveredRevenue = useMemo(() => orders
+    .filter(o => o.status === 'delivered' && !o.archivedAt)
     .reduce((sum, o) => sum + (o.packagePrice ?? 0), 0)
+  , [orders])
 
   if (authLoading || (loading && orders.length === 0)) return <TableSkeleton cols={7} rows={5} />
   if (!user) return null
@@ -173,16 +193,31 @@ export default function OrdersPage() {
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
+        <div className="flex flex-col gap-1">
           <h1 className="text-3xl font-black text-gray-900 tracking-tight">Orders</h1>
-          <div className="flex items-center gap-2 mt-1">
-            <div className="flex items-center gap-1 bg-green-50 px-2 py-0.5 rounded-full border border-green-100">
-              <DollarSign size={12} className="text-green-600" />
-              <span className="text-xs font-black text-green-700 uppercase tracking-tighter">
-                ${activeRevenue.toLocaleString()} Revenue
+          <div className="flex flex-wrap items-center gap-2 mt-1">
+            <div className="flex items-center gap-3 bg-indigo-50 px-4 py-1.5 rounded-2xl border border-indigo-100 shadow-sm shadow-indigo-900/5">
+              <div className="flex items-center gap-1.5">
+                <ShoppingCart size={14} className="text-indigo-600" />
+                <span className="text-[10px] font-black text-indigo-700 uppercase tracking-widest">
+                  {activeFulfillment.count} ACTIVE • {activeFulfillment.items} PKGS
+                </span>
+              </div>
+              <div className="w-px h-3 bg-indigo-200" />
+              <div className="flex items-center gap-1">
+                <DollarSign size={14} className="text-indigo-600" />
+                <span className="text-[10px] font-black text-indigo-700 uppercase tracking-widest">
+                  ${activeFulfillment.revenue.toLocaleString()} DUE
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 bg-green-50 px-4 py-1.5 rounded-2xl border border-green-100 shadow-sm shadow-green-900/5">
+              <DollarSign size={14} className="text-green-600" />
+              <span className="text-[10px] font-black text-green-700 uppercase tracking-widest">
+                ${deliveredRevenue.toLocaleString()} COMPLETED
               </span>
             </div>
-            <span className="text-xs font-bold text-gray-400">• {orders.length} total</span>
           </div>
         </div>
         <div className="flex items-center gap-2 self-end sm:self-auto">
@@ -234,11 +269,11 @@ export default function OrdersPage() {
               onChange={(e) => setStatusFilter(e.target.value as OrderStatus | 'all')}
               className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all appearance-none font-bold text-gray-600"
             >
-              <option value="all">All Status</option>
-              <option value="pending">Pending</option>
-              <option value="delivered">Delivered</option>
+              <option value="all">All Active (Delivering/Future)</option>
               <option value="delivering">Delivering</option>
               <option value="interested_future">Future Date</option>
+              <option value="delivered">Delivered (Completed)</option>
+              <option value="pending">Pending</option>
             </select>
           </div>
 

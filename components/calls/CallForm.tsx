@@ -70,9 +70,9 @@ export default function CallForm({ call, order, products, onDone }: Props) {
       : initialState()
   )
 
-  const [selectedProductId, setSelectedProductId] = useState<string>('')
-  const [selectedPackageId, setSelectedPackageId] = useState<string>('')
-  const [selectedQuantity, setSelectedQuantity] = useState<number>(1)
+  const [selectedProductId, setSelectedProductId] = useState<string>(order?.items?.[0]?.productId || order?.productId || '')
+  const [selectedPackageId, setSelectedPackageId] = useState<string>(order?.items?.[0]?.packageId || order?.packageId || '')
+  const [selectedQuantity, setSelectedQuantity] = useState<number>(order?.items?.[0]?.quantity || 1)
   const [items, setItems] = useState<OrderItem[]>(() => {
     if (order?.items && order.items.length > 0) return order.items
     if (order?.productId && order?.packageId) {
@@ -176,35 +176,46 @@ export default function CallForm({ call, order, products, onDone }: Props) {
         toast('Call logged!')
       }
 
-      // Automatically place order if it's a sale
-      if (requiresOrder && callId && items.length > 0 && form.area) {
-        const deliveryFee = DELIVERY_FEES[form.area]
-        const packagePrice = items.reduce((sum, item) => sum + (item.packagePrice * item.quantity), 0)
+      // Sync with Order if one exists OR if one is required
+      if (callId && (order?.id || requiresOrder)) {
+        // Only proceed if we have enough data to create/update an order
+        if (items.length > 0 && form.area) {
+          const deliveryFee = DELIVERY_FEES[form.area]
+          const packagePrice = items.reduce((sum, item) => sum + (item.packagePrice * item.quantity), 0)
 
-        const orderPayload: Omit<Order, 'id' | 'createdAt'> = {
-          callId,
-          clientName: form.name,
-          clientPhone: form.phone,
-          items, // set items
-          // Add first item's details as fallback for backward compatibility
-          productId: items[0].productId,
-          productName: items[0].productName,
-          packageId: items[0].packageId,
-          packageTitle: items[0].packageTitle,
-          packagePrice,
-          area: form.area,
-          deliveryFee,
-          totalPrice: packagePrice + deliveryFee,
-          status: form.outcome as OrderStatus, // Cast since types align
-          followUpDate: form.followUpDate,
-          ownerEmail: user?.email || '',
-        }
-        if (order?.id) {
-          await updateOrder(order.id, orderPayload)
-          toast('Order updated successfully!')
-        } else {
-          await addOrder(orderPayload, callId)
-          toast('Order linked successfully!')
+          const orderPayload: Omit<Order, 'id' | 'createdAt'> = {
+            callId,
+            clientName: form.name,
+            clientPhone: form.phone,
+            items,
+            productId: items[0].productId,
+            productName: items[0].productName,
+            packageId: items[0].packageId,
+            packageTitle: items[0].packageTitle,
+            packagePrice,
+            area: form.area,
+            deliveryFee,
+            totalPrice: packagePrice + deliveryFee,
+            status: form.outcome as OrderStatus,
+            followUpDate: form.followUpDate,
+            ownerEmail: user?.email || '',
+          }
+
+          if (order?.id) {
+            await updateOrder(order.id, orderPayload)
+          } else if (requiresOrder) {
+            await addOrder(orderPayload, callId)
+          }
+        } else if (order?.id) {
+          // If we have an order ID but no items/area (maybe they cleared it?), 
+          // at least sync the status if possible, but usually we want to keep the data.
+          // For now, just sync the status and name/phone
+          await updateOrder(order.id, { 
+            status: form.outcome as OrderStatus,
+            clientName: form.name,
+            clientPhone: form.phone,
+            followUpDate: form.followUpDate 
+          })
         }
       }
 
@@ -563,10 +574,10 @@ export default function CallForm({ call, order, products, onDone }: Props) {
                   onClick={() => set('outcome', o)}
                   className={`flex-1 min-w-[140px] px-5 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 ${form.outcome === o
                     ? o === 'delivered' ? 'bg-green-600 border-green-700 text-white shadow-lg shadow-green-900/10'
-                      : o === 'delivering' ? 'bg-orange-500 border-orange-600 text-white shadow-lg shadow-orange-900/10'
+                      : o === 'delivering' ? 'bg-indigo-600 border-indigo-700 text-white shadow-lg shadow-indigo-900/10'
                         : o === 'rejected' ? 'bg-red-500 border-red-600 text-white shadow-lg shadow-red-900/10'
                           : o === 'interested_future' ? 'bg-blue-600 border-blue-700 text-white shadow-lg shadow-blue-900/10'
-                            : 'bg-white border-gray-900 text-gray-900 shadow-sm'
+                            : 'bg-amber-500 border-amber-600 text-white shadow-lg shadow-amber-900/10'
                     : 'bg-white text-gray-400 border-gray-100 hover:border-gray-300'
                     }`}
                 >
